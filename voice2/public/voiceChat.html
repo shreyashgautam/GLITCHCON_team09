@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>AI Doctor Assistant</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #0a0f1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d45;
+    --accent: #00c8ff;
+    --accent2: #0066cc;
+    --danger: #ff4f4f;
+    --warn: #ffb347;
+    --ok: #00e676;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Header ──────────────────────────────────────── */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 28px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(10, 15, 26, 0.95);
+    backdrop-filter: blur(10px);
+    position: sticky; top: 0; z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 10px; }
+  .logo-icon {
+    width: 34px; height: 34px;
+    background: linear-gradient(135deg, #0066cc, #00c8ff);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  .logo-text { font-family: var(--mono); font-size: 15px; font-weight: 600; letter-spacing: 0.5px; }
+  .logo-sub { font-size: 11px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+
+  .header-right { display: flex; align-items: center; gap: 12px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 6px var(--ok); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .status-label { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+  /* ── Layout ──────────────────────────────────────── */
+  .app-body {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    flex: 1;
+    overflow: hidden;
+    height: calc(100vh - 65px);
+  }
+
+  /* ── Sidebar ─────────────────────────────────────── */
+  .sidebar {
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+    background: var(--surface);
+  }
+
+  .sidebar-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .sidebar-title { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
+  .patient-count-badge {
+    background: var(--accent2);
+    color: white;
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-weight: 600;
+  }
+
+  .patient-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .mode-toggle {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .mode-btn {
+    padding: 9px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 8px;
+    text-align: left;
+  }
+  .mode-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,200,255,0.05); }
+  .mode-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,200,255,0.1); }
+  .mode-btn .mode-icon { font-size: 14px; }
+
+  .patient-card {
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    margin-bottom: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    background: transparent;
+  }
+  .patient-card:hover { background: var(--surface2); border-color: var(--border); }
+  .patient-card.selected { background: rgba(0,200,255,0.08); border-color: var(--accent); }
+  .patient-card.all-mode { background: rgba(0,200,255,0.05); border-color: var(--accent); }
+
+  .pc-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .pc-avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: linear-gradient(135deg, var(--accent2), var(--accent));
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 10px; font-weight: 600; flex-shrink: 0;
+  }
+  .pc-name { font-size: 13px; font-weight: 500; }
+  .pc-id { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+  .pc-tags { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+  .tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-family: var(--mono);
+  }
+  .tag-dx { background: rgba(0,102,204,0.2); color: #60a5fa; }
+  .tag-warn { background: rgba(255,179,71,0.15); color: var(--warn); }
+
+  /* ── Main content ────────────────────────────────── */
+  .main {
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Context bar ─────────────────────────────────── */
+  .context-bar {
+    padding: 12px 20px;
+    background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--mono); font-size: 12px;
+  }
+  .context-label { color: var(--muted); }
+  .context-value { color: var(--accent); font-weight: 600; }
+  .context-sep { color: var(--border); }
+  .context-info { color: var(--muted); font-size: 11px; }
+
+  /* ── Conversation ────────────────────────────────── */
+  .conversation {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 28px;
+    display: flex; flex-direction: column; gap: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .msg { max-width: 860px; display: flex; flex-direction: column; gap: 6px; }
+  .msg.user { align-self: flex-end; align-items: flex-end; }
+  .msg.bot { align-self: flex-start; }
+
+  .msg-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    display: flex; align-items: center; gap: 6px;
+  }
+
+  .msg-bubble {
+    padding: 14px 18px;
+    border-radius: 12px;
+    line-height: 1.65;
+    font-size: 14px;
+  }
+  .msg.user .msg-bubble {
+    background: var(--accent2);
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+  .msg.bot .msg-bubble {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+    white-space: pre-wrap;
+  }
+
+  .msg-badge {
+    font-family: var(--mono); font-size: 10px;
+    padding: 2px 8px; border-radius: 10px;
+    background: rgba(0,200,255,0.1); color: var(--accent);
+    border: 1px solid rgba(0,200,255,0.2);
+  }
+
+  .thinking {
+    display: flex; gap: 5px; padding: 14px 18px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; border-bottom-left-radius: 4px;
+    align-items: center;
+  }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: bounce 1.2s infinite; }
+  .dot:nth-child(2) { animation-delay: 0.2s; }
+  .dot:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes bounce { 0%,80%,100% { transform: translateY(0); } 40% { transform: translateY(-8px); } }
+
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 16px;
+    color: var(--muted); text-align: center;
+  }
+  .empty-icon { font-size: 48px; opacity: 0.3; }
+  .empty-title { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .suggestion-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+  .chip {
+    padding: 8px 14px; border-radius: 20px;
+    border: 1px solid var(--border); background: var(--surface2);
+    color: var(--text); font-size: 12px; cursor: pointer;
+    transition: all 0.15s; font-family: var(--mono);
+  }
+  .chip:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,200,255,0.05); }
+
+  /* ── Input area ──────────────────────────────────── */
+  .input-area {
+    padding: 16px 20px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    display: flex; flex-direction: column; gap: 12px;
+  }
+
+  .input-row {
+    display: flex; gap: 10px; align-items: flex-end;
+  }
+
+  .input-box {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    resize: none;
+    outline: none;
+    min-height: 48px;
+    max-height: 120px;
+    transition: border-color 0.15s;
+    line-height: 1.5;
+  }
+  .input-box:focus { border-color: var(--accent); }
+  .input-box::placeholder { color: var(--muted); }
+
+  .btn {
+    padding: 12px 18px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    transition: all 0.15s;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
+  }
+  .btn-primary { background: var(--accent2); color: white; }
+  .btn-primary:hover { background: #0077ee; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-voice {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .btn-voice:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-voice.listening {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(255,79,79,0.1);
+    animation: ring 1s infinite;
+  }
+  @keyframes ring { 0%,100% { box-shadow: 0 0 0 0 rgba(255,79,79,0.4); } 50% { box-shadow: 0 0 0 6px rgba(255,79,79,0); } }
+
+  .input-hints {
+    display: flex; gap: 8px; flex-wrap: wrap;
+    padding: 0 4px;
+  }
+  .hint {
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 8px; cursor: pointer; transition: all 0.15s;
+  }
+  .hint:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* ── Scrollbar ───────────────────────────────────── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  /* ── Responsive ──────────────────────────────────── */
+  @media (max-width: 768px) {
+    .app-body { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">🏥</div>
+    <div>
+      <div class="logo-text">AI Doctor Assistant</div>
+      <div class="logo-sub">Clinical Intelligence System</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="status-dot"></div>
+    <div class="status-label" id="statusLabel">SYSTEM READY</div>
+  </div>
+</header>
+
+<div class="app-body">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-title">Patients</span>
+      <span class="patient-count-badge" id="patientCountBadge">0</span>
+    </div>
+
+    <div class="patient-list" id="patientList">
+      <!-- Injected by JS -->
+    </div>
+
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="btnAllMode" onclick="setMode('all')">
+        <span class="mode-icon">📋</span>All Patients Mode
+      </button>
+      <button class="mode-btn" id="btnSingleMode" onclick="setMode('single')">
+        <span class="mode-icon">👤</span>Single Patient Mode
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+
+    <div class="context-bar">
+      <span class="context-label">MODE:</span>
+      <span class="context-value" id="ctxMode">ALL PATIENTS</span>
+      <span class="context-sep">|</span>
+      <span class="context-label">CONTEXT:</span>
+      <span class="context-value" id="ctxPatient">—</span>
+      <span class="context-sep">|</span>
+      <span class="context-info" id="ctxInfo">Queries will analyse all patient records</span>
+    </div>
+
+    <div class="conversation" id="conversation">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">🩺</div>
+        <div class="empty-title">Ask me about your patients</div>
+        <div style="font-size:13px; max-width:480px; line-height:1.6;">
+          Select a patient from the sidebar for focused analysis, or stay in All Patients mode to compare and review across your entire patient list.
+        </div>
+        <div class="suggestion-chips" id="suggestionChips">
+          <!-- Injected by JS -->
+        </div>
+      </div>
+    </div>
+
+    <div class="input-area">
+      <div class="input-hints" id="inputHints">
+        <!-- Injected by JS -->
+      </div>
+      <div class="input-row">
+        <textarea
+          class="input-box"
+          id="queryInput"
+          placeholder="Ask about medications, lab results, visit history, comparisons..."
+          rows="1"
+          onkeydown="handleKey(event)"
+          oninput="autoResize(this)"
+        ></textarea>
+        <button class="btn btn-voice" id="voiceBtn" onclick="toggleVoice()" title="Voice input">🎙</button>
+        <button class="btn btn-primary" id="sendBtn" onclick="sendQuery()">Send ↵</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ─── State ────────────────────────────────────────────────────────────────────
+let mode = "all";        // "all" | "single"
+let selectedPatient = null;
+let patients = [];
+let recognition = null;
+let isListening = false;
+let isLoading = false;
+
+// ─── Suggestions by mode ─────────────────────────────────────────────────────
+const allSuggestions = [
+  "List all patients with abnormal labs",
+  "Which patient has the most medications?",
+  "Show patients with diabetes",
+  "Compare BP across all patients",
+  "Who had recent visits?",
+  "Summarize all critical findings",
+];
+
+const singleSuggestions = (name) => [
+  `Show medications for ${name}`,
+  `Latest lab results for ${name}`,
+  `Visit history for ${name}`,
+  `Any drug interactions for ${name}?`,
+  `Summarize ${name}'s condition`,
+];
+
+const hints = {
+  all: ["all patients", "compare", "who has...", "summarize all", "high risk", "critical labs"],
+  single: ["medications", "labs", "visits", "symptoms", "drug interactions", "summary"],
+};
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  try {
+    const res = await fetch("/api/patients");
+    const data = await res.json();
+    if (data.success) {
+      patients = data.patients;
+      renderSidebar();
+      renderSuggestions();
+      renderHints();
+      document.getElementById("patientCountBadge").textContent = patients.length;
+      updateContextBar();
+    }
+  } catch (e) {
+    console.error("Failed to load patients:", e);
+  }
+}
+
+// ─── Sidebar ──────────────────────────────────────────────────────────────────
+function renderSidebar() {
+  const list = document.getElementById("patientList");
+  list.innerHTML = patients.map((p) => `
+    <div class="patient-card ${selectedPatient === p.patient_id ? "selected" : ""}" 
+         id="pc-${p.patient_id}"
+         onclick="selectPatient('${p.patient_id}')">
+      <div class="pc-top">
+        <div class="pc-avatar">${p.name.split(" ").map(w=>w[0]).join("").slice(0,2)}</div>
+        <div>
+          <div class="pc-name">${p.name}</div>
+          <div class="pc-id">${p.patient_id} · ${p.age}y · ${p.gender}</div>
+        </div>
+      </div>
+      <div class="pc-tags">
+        ${p.diagnosis.slice(0,2).map(d=>`<span class="tag tag-dx">${d}</span>`).join("")}
+        ${p.diagnosis.length > 2 ? `<span class="tag tag-warn">+${p.diagnosis.length-2}</span>` : ""}
+      </div>
+    </div>
+  `).join("");
+}
+
+function selectPatient(id) {
+  if (mode === "all") setMode("single");
+  selectedPatient = id;
+  renderSidebar();
+  updateContextBar();
+  renderSuggestions();
+  renderHints();
+}
+
+// ─── Mode ─────────────────────────────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  if (m === "all") selectedPatient = null;
+
+  document.getElementById("btnAllMode").classList.toggle("active", m === "all");
+  document.getElementById("btnSingleMode").classList.toggle("active", m === "single");
+
+  renderSidebar();
+  updateContextBar();
+  renderSuggestions();
+  renderHints();
+}
+
+function updateContextBar() {
+  const modeEl = document.getElementById("ctxMode");
+  const patEl = document.getElementById("ctxPatient");
+  const infoEl = document.getElementById("ctxInfo");
+
+  if (mode === "all") {
+    modeEl.textContent = "ALL PATIENTS";
+    patEl.textContent = `${patients.length} patients`;
+    infoEl.textContent = "Queries will analyse all patient records";
+  } else {
+    modeEl.textContent = "SINGLE PATIENT";
+    if (selectedPatient) {
+      const p = patients.find(p => p.patient_id === selectedPatient);
+      patEl.textContent = p ? `${p.name} (${p.patient_id})` : selectedPatient;
+      infoEl.textContent = `Focused analysis · ${p?.diagnosis?.join(", ")}`;
+    } else {
+      patEl.textContent = "None selected";
+      infoEl.textContent = "Select a patient from the sidebar";
+    }
+  }
+}
+
+// ─── Suggestions ─────────────────────────────────────────────────────────────
+function renderSuggestions() {
+  const container = document.getElementById("suggestionChips");
+  const list = mode === "single" && selectedPatient
+    ? singleSuggestions(patients.find(p=>p.patient_id===selectedPatient)?.name || "patient")
+    : allSuggestions;
+  container.innerHTML = list.map(s =>
+    `<button class="chip" onclick="useChip('${s.replace(/'/g, "\\'")}')">${s}</button>`
+  ).join("");
+}
+
+function renderHints() {
+  const container = document.getElementById("inputHints");
+  const list = hints[mode] || [];
+  container.innerHTML = list.map(h =>
+    `<span class="hint" onclick="appendHint('${h}')">${h}</span>`
+  ).join("");
+}
+
+function useChip(text) {
+  document.getElementById("queryInput").value = text;
+  sendQuery();
+}
+
+function appendHint(text) {
+  const input = document.getElementById("queryInput");
+  input.value = (input.value + " " + text).trim();
+  input.focus();
+}
+
+// ─── Send query ───────────────────────────────────────────────────────────────
+async function sendQuery() {
+  const input = document.getElementById("queryInput");
+  const query = input.value.trim();
+  if (!query || isLoading) return;
+
+  input.value = "";
+  autoResize(input);
+
+  const patientId = (mode === "single" && selectedPatient) ? selectedPatient : null;
+
+  hideEmptyState();
+  appendUserMsg(query);
+  const thinkingEl = appendThinking();
+  setLoading(true);
+
+  try {
+    const res = await fetch("/api/voice", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query, patientId }),
+    });
+    const data = await res.json();
+    thinkingEl.remove();
+
+    if (data.success) {
+      appendBotMsg(data.response, data.meta);
+    } else {
+      appendBotMsg(`⚠️ ${data.response || "Something went wrong."}`, null);
+    }
+  } catch (e) {
+    thinkingEl.remove();
+    appendBotMsg("⚠️ Could not reach server. Check your connection.", null);
+  }
+
+  setLoading(false);
+}
+
+// ─── Chat rendering ───────────────────────────────────────────────────────────
+function hideEmptyState() {
+  const es = document.getElementById("emptyState");
+  if (es) es.remove();
+}
+
+function appendUserMsg(text) {
+  const conv = document.getElementById("conversation");
+  const div = document.createElement("div");
+  div.className = "msg user";
+  div.innerHTML = `
+    <div class="msg-meta">${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+    <div class="msg-bubble">${escapeHtml(text)}</div>
+  `;
+  conv.appendChild(div);
+  scrollBottom();
+}
+
+function appendBotMsg(text, meta) {
+  const conv = document.getElementById("conversation");
+  const div = document.createElement("div");
+  div.className = "msg bot";
+
+  let metaHtml = "";
+  if (meta) {
+    metaHtml = `<span class="msg-badge">📊 ${meta.patientsAnalyzed} patient${meta.patientsAnalyzed > 1 ? "s" : ""} analysed</span>`;
+  }
+
+  div.innerHTML = `
+    <div class="msg-meta">
+      ${metaHtml}
+      ${new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}
+      <span style="cursor:pointer;opacity:0.6" onclick="speakText(this)" data-text="${escapeAttr(text)}" title="Read aloud">🔊</span>
+    </div>
+    <div class="msg-bubble">${escapeHtml(text)}</div>
+  `;
+  conv.appendChild(div);
+  scrollBottom();
+}
+
+function appendThinking() {
+  const conv = document.getElementById("conversation");
+  const div = document.createElement("div");
+  div.className = "msg bot";
+  div.innerHTML = `<div class="thinking"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>`;
+  conv.appendChild(div);
+  scrollBottom();
+  return div;
+}
+
+// ─── Voice input ──────────────────────────────────────────────────────────────
+function toggleVoice() {
+  if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+    alert("Voice input not supported in this browser. Try Chrome.");
+    return;
+  }
+
+  if (isListening) {
+    recognition?.stop();
+    return;
+  }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.continuous = false;
+  recognition.interimResults = false;
+
+  recognition.onstart = () => {
+    isListening = true;
+    document.getElementById("voiceBtn").classList.add("listening");
+    document.getElementById("statusLabel").textContent = "LISTENING...";
+  };
+
+  recognition.onresult = (e) => {
+    const transcript = e.results[0][0].transcript;
+    document.getElementById("queryInput").value = transcript;
+    sendQuery();
+  };
+
+  recognition.onend = () => {
+    isListening = false;
+    document.getElementById("voiceBtn").classList.remove("listening");
+    document.getElementById("statusLabel").textContent = "SYSTEM READY";
+  };
+
+  recognition.onerror = (e) => {
+    console.error("Speech recognition error:", e.error);
+    isListening = false;
+    document.getElementById("voiceBtn").classList.remove("listening");
+    document.getElementById("statusLabel").textContent = "SYSTEM READY";
+  };
+
+  recognition.start();
+}
+
+// ─── Text-to-speech ───────────────────────────────────────────────────────────
+function speakText(btn) {
+  const text = btn.dataset.text;
+  if (!text) return;
+  window.speechSynthesis.cancel();
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.rate = 1.0;
+  utt.pitch = 1.0;
+  window.speechSynthesis.speak(utt);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendQuery();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = "auto";
+  el.style.height = Math.min(el.scrollHeight, 120) + "px";
+}
+
+function scrollBottom() {
+  const conv = document.getElementById("conversation");
+  conv.scrollTop = conv.scrollHeight;
+}
+
+function setLoading(state) {
+  isLoading = state;
+  document.getElementById("sendBtn").disabled = state;
+  document.getElementById("statusLabel").textContent = state ? "PROCESSING..." : "SYSTEM READY";
+}
+
+function escapeHtml(str) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
+}
+
+function escapeAttr(str) {
+  return str.replace(/"/g, "&quot;").replace(/\n/g, " ");
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,27 @@
+[
+  { "lab_id": "L0001", "patient_id": "P001", "test": "Blood Pressure", "value": 143.11, "unit": "mmHg", "normal_range": "120/80", "status": "High", "date": "2024-01-14", "lab_name": "SRL Diagnostics" },
+  { "lab_id": "L0002", "patient_id": "P001", "test": "HbA1c", "value": 8.2, "unit": "%", "normal_range": "<5.7%", "status": "High", "date": "2024-01-14", "lab_name": "SRL Diagnostics" },
+  { "lab_id": "L0003", "patient_id": "P001", "test": "Fasting Blood Sugar", "value": 178, "unit": "mg/dL", "normal_range": "70-100", "status": "High", "date": "2024-01-14", "lab_name": "SRL Diagnostics" },
+  { "lab_id": "L0004", "patient_id": "P001", "test": "Creatinine", "value": 1.1, "unit": "mg/dL", "normal_range": "0.7-1.3", "status": "Normal", "date": "2024-01-14", "lab_name": "SRL Diagnostics" },
+  { "lab_id": "L0005", "patient_id": "P001", "test": "HbA1c", "value": 7.8, "unit": "%", "normal_range": "<5.7%", "status": "High", "date": "2023-07-10", "lab_name": "SRL Diagnostics" },
+  { "lab_id": "L0006", "patient_id": "P001", "test": "Blood Pressure", "value": 138, "unit": "mmHg", "normal_range": "120/80", "status": "High", "date": "2023-07-10", "lab_name": "SRL Diagnostics" },
+
+  { "lab_id": "L0007", "patient_id": "P002", "test": "TSH", "value": 8.5, "unit": "mIU/L", "normal_range": "0.4-4.0", "status": "High", "date": "2024-02-10", "lab_name": "Thyrocare" },
+  { "lab_id": "L0008", "patient_id": "P002", "test": "Hemoglobin", "value": 9.2, "unit": "g/dL", "normal_range": "12-16", "status": "Low", "date": "2024-02-10", "lab_name": "Thyrocare" },
+  { "lab_id": "L0009", "patient_id": "P002", "test": "Ferritin", "value": 5, "unit": "ng/mL", "normal_range": "12-150", "status": "Low", "date": "2024-02-10", "lab_name": "Thyrocare" },
+  { "lab_id": "L0010", "patient_id": "P002", "test": "T4 Free", "value": 0.6, "unit": "ng/dL", "normal_range": "0.8-1.8", "status": "Low", "date": "2024-02-10", "lab_name": "Thyrocare" },
+
+  { "lab_id": "L0011", "patient_id": "P003", "test": "Peak Flow", "value": 320, "unit": "L/min", "normal_range": "400-600", "status": "Low", "date": "2024-03-05", "lab_name": "Apollo Labs" },
+  { "lab_id": "L0012", "patient_id": "P003", "test": "IgE Total", "value": 450, "unit": "IU/mL", "normal_range": "<100", "status": "High", "date": "2024-03-05", "lab_name": "Apollo Labs" },
+  { "lab_id": "L0013", "patient_id": "P003", "test": "Eosinophils", "value": 9, "unit": "%", "normal_range": "1-4", "status": "High", "date": "2024-03-05", "lab_name": "Apollo Labs" },
+
+  { "lab_id": "L0014", "patient_id": "P004", "test": "Serum Calcium", "value": 8.0, "unit": "mg/dL", "normal_range": "8.5-10.5", "status": "Low", "date": "2024-01-20", "lab_name": "Vijaya Diagnostics" },
+  { "lab_id": "L0015", "patient_id": "P004", "test": "eGFR", "value": 42, "unit": "mL/min", "normal_range": ">60", "status": "Low", "date": "2024-01-20", "lab_name": "Vijaya Diagnostics" },
+  { "lab_id": "L0016", "patient_id": "P004", "test": "HbA1c", "value": 7.9, "unit": "%", "normal_range": "<5.7%", "status": "High", "date": "2024-01-20", "lab_name": "Vijaya Diagnostics" },
+  { "lab_id": "L0017", "patient_id": "P004", "test": "Creatinine", "value": 1.8, "unit": "mg/dL", "normal_range": "0.7-1.3", "status": "High", "date": "2024-01-20", "lab_name": "Vijaya Diagnostics" },
+
+  { "lab_id": "L0018", "patient_id": "P005", "test": "LDL Cholesterol", "value": 165, "unit": "mg/dL", "normal_range": "<100", "status": "High", "date": "2024-02-15", "lab_name": "Manipal Labs" },
+  { "lab_id": "L0019", "patient_id": "P005", "test": "Triglycerides", "value": 310, "unit": "mg/dL", "normal_range": "<150", "status": "High", "date": "2024-02-15", "lab_name": "Manipal Labs" },
+  { "lab_id": "L0020", "patient_id": "P005", "test": "Blood Pressure", "value": 155, "unit": "mmHg", "normal_range": "120/80", "status": "High", "date": "2024-02-15", "lab_name": "Manipal Labs" },
+  { "lab_id": "L0021", "patient_id": "P005", "test": "ECG QTc", "value": 445, "unit": "ms", "normal_range": "<440", "status": "Borderline", "date": "2024-02-15", "lab_name": "Manipal Labs" }
+]

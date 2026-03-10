@@ -1,0 +1,72 @@
+[
+  {
+    "patient_id": "P001",
+    "name": "Rahul Sharma",
+    "age": 62,
+    "gender": "Male",
+    "blood_group": "B-",
+    "phone": "+91-7958682846",
+    "city": "Chennai",
+    "diagnosis": ["Type 2 Diabetes", "Hypertension"],
+    "allergies": ["Penicillin"],
+    "smoking": "Current",
+    "alcohol": "None",
+    "bmi": 34.1
+  },
+  {
+    "patient_id": "P002",
+    "name": "Priya Nair",
+    "age": 45,
+    "gender": "Female",
+    "blood_group": "O+",
+    "phone": "+91-9876543210",
+    "city": "Mumbai",
+    "diagnosis": ["Hypothyroidism", "Anemia"],
+    "allergies": ["Sulfa drugs"],
+    "smoking": "Never",
+    "alcohol": "Occasional",
+    "bmi": 27.3
+  },
+  {
+    "patient_id": "P003",
+    "name": "Arjun Mehta",
+    "age": 35,
+    "gender": "Male",
+    "blood_group": "A+",
+    "phone": "+91-9812345678",
+    "city": "Delhi",
+    "diagnosis": ["Asthma", "Allergic Rhinitis"],
+    "allergies": ["Aspirin", "Dust"],
+    "smoking": "Never",
+    "alcohol": "None",
+    "bmi": 22.8
+  },
+  {
+    "patient_id": "P004",
+    "name": "Sunita Reddy",
+    "age": 58,
+    "gender": "Female",
+    "blood_group": "AB+",
+    "phone": "+91-9001234567",
+    "city": "Hyderabad",
+    "diagnosis": ["Osteoporosis", "Type 2 Diabetes", "Chronic Kidney Disease"],
+    "allergies": [],
+    "smoking": "Former",
+    "alcohol": "None",
+    "bmi": 29.5
+  },
+  {
+    "patient_id": "P005",
+    "name": "Vikram Singh",
+    "age": 50,
+    "gender": "Male",
+    "blood_group": "B+",
+    "phone": "+91-8765432109",
+    "city": "Bangalore",
+    "diagnosis": ["Coronary Artery Disease", "Hypertension", "Dyslipidemia"],
+    "allergies": ["Statins"],
+    "smoking": "Former",
+    "alcohol": "Moderate",
+    "bmi": 31.2
+  }
+]

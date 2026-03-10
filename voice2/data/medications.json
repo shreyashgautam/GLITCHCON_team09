@@ -1,0 +1,27 @@
+[
+  { "med_id": "M0001", "patient_id": "P001", "drug": "Metformin", "dose": "500mg", "frequency": "Twice daily", "route": "Oral", "start_date": "2023-05-31", "end_date": null, "prescribed_by": "Dr. Menon", "active": true },
+  { "med_id": "M0002", "patient_id": "P001", "drug": "Amlodipine", "dose": "5mg", "frequency": "Once daily", "route": "Oral", "start_date": "2023-06-01", "end_date": null, "prescribed_by": "Dr. Menon", "active": true },
+  { "med_id": "M0003", "patient_id": "P001", "drug": "Telmisartan", "dose": "40mg", "frequency": "Once daily", "route": "Oral", "start_date": "2023-06-01", "end_date": null, "prescribed_by": "Dr. Menon", "active": true },
+  { "med_id": "M0004", "patient_id": "P001", "drug": "Glimepiride", "dose": "2mg", "frequency": "Once daily before breakfast", "route": "Oral", "start_date": "2024-01-15", "end_date": null, "prescribed_by": "Dr. Menon", "active": true },
+  { "med_id": "M0005", "patient_id": "P001", "drug": "Aspirin", "dose": "75mg", "frequency": "Once daily", "route": "Oral", "start_date": "2023-08-01", "end_date": "2023-11-30", "prescribed_by": "Dr. Pillai", "active": false },
+
+  { "med_id": "M0006", "patient_id": "P002", "drug": "Levothyroxine", "dose": "75mcg", "frequency": "Once daily (empty stomach)", "route": "Oral", "start_date": "2024-02-11", "end_date": null, "prescribed_by": "Dr. Krishnamurthy", "active": true },
+  { "med_id": "M0007", "patient_id": "P002", "drug": "Ferrous Sulfate", "dose": "325mg", "frequency": "Twice daily", "route": "Oral", "start_date": "2024-02-11", "end_date": null, "prescribed_by": "Dr. Krishnamurthy", "active": true },
+  { "med_id": "M0008", "patient_id": "P002", "drug": "Vitamin C", "dose": "500mg", "frequency": "Once daily", "route": "Oral", "start_date": "2024-02-11", "end_date": null, "prescribed_by": "Dr. Krishnamurthy", "active": true },
+
+  { "med_id": "M0009", "patient_id": "P003", "drug": "Salbutamol Inhaler", "dose": "100mcg/puff", "frequency": "As needed (rescue)", "route": "Inhaled", "start_date": "2022-03-10", "end_date": null, "prescribed_by": "Dr. Iyer", "active": true },
+  { "med_id": "M0010", "patient_id": "P003", "drug": "Budesonide Inhaler", "dose": "200mcg", "frequency": "Twice daily", "route": "Inhaled", "start_date": "2024-03-06", "end_date": null, "prescribed_by": "Dr. Iyer", "active": true },
+  { "med_id": "M0011", "patient_id": "P003", "drug": "Montelukast", "dose": "10mg", "frequency": "Once at night", "route": "Oral", "start_date": "2024-03-06", "end_date": null, "prescribed_by": "Dr. Iyer", "active": true },
+  { "med_id": "M0012", "patient_id": "P003", "drug": "Cetirizine", "dose": "10mg", "frequency": "Once at night", "route": "Oral", "start_date": "2023-09-01", "end_date": null, "prescribed_by": "Dr. Iyer", "active": true },
+
+  { "med_id": "M0013", "patient_id": "P004", "drug": "Calcitriol", "dose": "0.25mcg", "frequency": "Once daily", "route": "Oral", "start_date": "2023-11-01", "end_date": null, "prescribed_by": "Dr. Rao", "active": true },
+  { "med_id": "M0014", "patient_id": "P004", "drug": "Metformin", "dose": "500mg", "frequency": "Once daily (low dose - CKD)", "route": "Oral", "start_date": "2022-08-01", "end_date": null, "prescribed_by": "Dr. Rao", "active": true },
+  { "med_id": "M0015", "patient_id": "P004", "drug": "Calcium Carbonate", "dose": "500mg", "frequency": "Twice daily with meals", "route": "Oral", "start_date": "2023-11-01", "end_date": null, "prescribed_by": "Dr. Rao", "active": true },
+  { "med_id": "M0016", "patient_id": "P004", "drug": "Erythropoietin", "dose": "2000 IU", "frequency": "Three times per week", "route": "Subcutaneous", "start_date": "2024-01-21", "end_date": null, "prescribed_by": "Dr. Rao", "active": true },
+
+  { "med_id": "M0017", "patient_id": "P005", "drug": "Metoprolol", "dose": "50mg", "frequency": "Twice daily", "route": "Oral", "start_date": "2022-05-01", "end_date": null, "prescribed_by": "Dr. Sharma", "active": true },
+  { "med_id": "M0018", "patient_id": "P005", "drug": "Ramipril", "dose": "5mg", "frequency": "Once daily", "route": "Oral", "start_date": "2022-05-01", "end_date": null, "prescribed_by": "Dr. Sharma", "active": true },
+  { "med_id": "M0019", "patient_id": "P005", "drug": "Clopidogrel", "dose": "75mg", "frequency": "Once daily", "route": "Oral", "start_date": "2022-05-01", "end_date": null, "prescribed_by": "Dr. Sharma", "active": true },
+  { "med_id": "M0020", "patient_id": "P005", "drug": "Fenofibrate", "dose": "145mg", "frequency": "Once daily (statin-intolerant)", "route": "Oral", "start_date": "2023-02-10", "end_date": null, "prescribed_by": "Dr. Sharma", "active": true },
+  { "med_id": "M0021", "patient_id": "P005", "drug": "Nitroglycerin Spray", "dose": "0.4mg/spray", "frequency": "As needed for chest pain", "route": "Sublingual", "start_date": "2022-05-01", "end_date": null, "prescribed_by": "Dr. Sharma", "active": true }
+]
