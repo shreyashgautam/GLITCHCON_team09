@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Patient Intelligence Agent Network</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap');
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#020810;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
+body{font-family:'Syne',sans-serif;color:#c8e6ff;}
+
+/* BG */
+.bg-grid{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background-image:linear-gradient(rgba(0,180,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(0,180,255,.028) 1px,transparent 1px);
+  background-size:48px 48px;animation:gd 50s linear infinite;}
+@keyframes gd{from{background-position:0 0}to{background-position:48px 48px}}
+#bgc{position:fixed;inset:0;z-index:0;pointer-events:none;}
+
+/* LAYOUT */
+.shell{position:relative;z-index:1;display:flex;flex-direction:column;width:100%;height:100%;}
+
+/* TOP BAR */
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:10px 24px;background:rgba(2,8,18,.94);
+  border-bottom:1px solid rgba(0,180,255,.12);
+  backdrop-filter:blur(16px);gap:12px;flex-wrap:wrap;flex-shrink:0;
+  box-shadow:0 2px 30px rgba(0,0,0,.7);position:relative;
+}
+.topbar::after{content:'';position:absolute;bottom:-1px;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,#00b4ff 30%,#00ff9d 50%,#00b4ff 70%,transparent);
+  background-size:200% 100%;animation:sweep 4s linear infinite;}
+@keyframes sweep{from{background-position:200% 0}to{background-position:-200% 0}}
+
+.logo{display:flex;align-items:center;gap:10px;}
+.logo-icon{width:32px;height:32px;background:rgba(0,180,255,.1);border:1px solid rgba(0,180,255,.3);
+  border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:16px;
+  position:relative;box-shadow:0 0 16px rgba(0,180,255,.12);}
+.logo-icon::before{content:'';position:absolute;inset:-1px;border-radius:8px;
+  background:conic-gradient(from var(--a,0deg),transparent 75%,#00b4ff);
+  -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;padding:1px;
+  animation:lspin 3s linear infinite;}
+@property --a{syntax:'<angle>';inherits:false;initial-value:0deg;}
+@keyframes lspin{to{--a:360deg}}
+.logo-text{font-size:14px;font-weight:800;color:#fff;}
+.logo-sub{font-family:'Space Mono',monospace;font-size:8px;color:rgba(0,180,255,.45);letter-spacing:.1em;text-transform:uppercase;}
+
+.controls{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+.btn{padding:7px 16px;border-radius:4px;border:1px solid rgba(0,180,255,.2);
+  background:rgba(0,180,255,.05);color:rgba(200,230,255,.7);
+  font-family:'Syne',sans-serif;font-size:12px;font-weight:700;
+  cursor:pointer;transition:all .2s;letter-spacing:.04em;display:flex;align-items:center;gap:5px;
+  position:relative;overflow:hidden;}
+.btn::before{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent);transition:left .4s;}
+.btn:hover::before{left:100%;}
+.btn:hover{border-color:rgba(0,180,255,.5);color:#fff;background:rgba(0,180,255,.1);}
+.btn.go{border-color:#00ff9d;color:#00ff9d;background:rgba(0,255,157,.06);}
+.btn.primary{border-color:#00b4ff;color:#00d4ff;background:rgba(0,180,255,.1);}
+.btn:disabled{opacity:.2;pointer-events:none;}
+.speed-ctrl{display:flex;align-items:center;gap:7px;font-family:'Space Mono',monospace;font-size:9px;color:rgba(0,180,255,.45);}
+input[type=range]{width:60px;height:3px;accent-color:#00b4ff;cursor:pointer;}
+
+/* PROGRESS */
+.prog-track{height:2px;background:rgba(255,255,255,.04);flex-shrink:0;}
+.prog-fill{height:100%;width:0%;transition:width .7s ease;
+  background:linear-gradient(90deg,#00b4ff,#00ff9d,#ff7b2e);
+  box-shadow:0 0 10px rgba(0,180,255,.4);}
+
+/* BANNER */
+.banner{padding:9px 24px;background:linear-gradient(90deg,rgba(0,180,255,.05),transparent);
+  border-bottom:1px solid rgba(0,180,255,.06);
+  font-family:'Space Mono',monospace;font-size:10px;
+  display:flex;align-items:center;gap:14px;min-height:40px;flex-shrink:0;}
+.banner-step{font-size:22px;font-weight:800;color:#00b4ff;opacity:.25;font-family:'Syne',sans-serif;transition:all .4s;flex-shrink:0;}
+.banner.live .banner-step{opacity:.85;text-shadow:0 0 20px rgba(0,180,255,.6);}
+.banner-msg{color:rgba(200,230,255,.8);line-height:1.5;}
+
+/* BODY */
+.body{display:flex;flex:1;min-height:0;}
+
+/* NETWORK CANVAS AREA */
+.network-wrap{flex:1;position:relative;overflow:hidden;}
+#netsvg{width:100%;height:100%;display:block;}
+
+/* AGENT CIRCLES - rendered via SVG foreignObject + HTML */
+.agent{
+  position:absolute;transform:translate(-50%,-50%);
+  display:flex;flex-direction:column;align-items:center;
+  cursor:default;transition:opacity .4s;
+  width:88px;
+}
+.agent.idle{opacity:.45;}
+.agent.running{opacity:1;}
+.agent.done{opacity:.75;}
+
+.agent-orb{
+  width:54px;height:54px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%, rgba(255,255,255,.08), rgba(0,0,0,.4));
+  border:2px solid rgba(255,255,255,.1);
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;position:relative;
+  transition:border-color .4s,box-shadow .4s,transform .4s;
+  flex-shrink:0;
+}
+.agent.running .agent-orb{
+  border-color:var(--nc,#00b4ff);
+  box-shadow:0 0 0 4px color-mix(in srgb,var(--nc,#00b4ff) 15%,transparent),
+             0 0 30px color-mix(in srgb,var(--nc,#00b4ff) 35%,transparent),
+             inset 0 0 20px color-mix(in srgb,var(--nc,#00b4ff) 10%,transparent);
+  transform:scale(1.12);
+  animation:orb-breathe 2s ease-in-out infinite;
+}
+@keyframes orb-breathe{
+  0%,100%{box-shadow:0 0 0 4px color-mix(in srgb,var(--nc,#00b4ff) 15%,transparent),0 0 28px color-mix(in srgb,var(--nc,#00b4ff) 30%,transparent);}
+  50%{box-shadow:0 0 0 8px color-mix(in srgb,var(--nc,#00b4ff) 10%,transparent),0 0 50px color-mix(in srgb,var(--nc,#00b4ff) 50%,transparent);}
+}
+.agent.done .agent-orb{border-color:rgba(0,255,120,.5);box-shadow:0 0 16px rgba(0,255,120,.2);}
+
+/* Spinning conic ring on running */
+.agent-orb::after{
+  content:'';position:absolute;inset:-3px;border-radius:50%;
+  background:conic-gradient(from var(--ang2,0deg),transparent 75%,var(--nc,#00b4ff) 100%);
+  -webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 3px),#fff calc(100% - 3px));
+  opacity:0;transition:opacity .3s;
+  animation:ospin 1.6s linear infinite;
+}
+@property --ang2{syntax:'<angle>';inherits:false;initial-value:0deg;}
+@keyframes ospin{to{--ang2:360deg}}
+.agent.running .agent-orb::after{opacity:1;}
+
+.agent-label{
+  margin-top:5px;font-size:9px;font-weight:700;color:#ddeeff;
+  text-align:center;line-height:1.3;white-space:nowrap;
+  text-shadow:0 0 12px rgba(0,0,0,.8);
+}
+.agent-sub{
+  font-family:'Space Mono',monospace;font-size:6.5px;
+  color:rgba(100,160,220,.5);text-align:center;margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:88px;
+}
+.agent.running .agent-sub{color:var(--nc,#00b4ff);animation:subglow 1s ease-in-out infinite alternate;}
+@keyframes subglow{from{opacity:.7;}to{opacity:1;text-shadow:0 0 8px var(--nc,#00b4ff);}}
+
+.agent-badge{
+  position:absolute;top:-5px;left:50%;transform:translateX(-50%);
+  font-family:'Space Mono',monospace;font-size:6px;text-transform:uppercase;letter-spacing:.08em;
+  padding:1px 6px;border-radius:2px;border:1px solid currentColor;
+  color:var(--nc,#00b4ff);background:var(--bg);white-space:nowrap;
+  transition:all .3s;
+}
+.agent.running .agent-badge{box-shadow:0 0 8px color-mix(in srgb,var(--nc,#00b4ff) 60%,transparent);}
+.agent.done .agent-badge{color:#00ff78;border-color:#00ff78;}
+
+/* Tick text below orb */
+.agent-tick{
+  position:absolute;bottom:-16px;left:50%;transform:translateX(-50%);
+  font-family:'Space Mono',monospace;font-size:6.5px;color:var(--nc,#00b4ff);
+  white-space:nowrap;opacity:0;transition:opacity .3s;pointer-events:none;
+  text-shadow:0 0 8px var(--nc,#00b4ff);
+}
+.agent.running .agent-tick{opacity:1;animation:tickgl .8s ease-in-out infinite alternate;}
+@keyframes tickgl{from{opacity:.6;}to{opacity:1;}}
+
+/* Done check overlay */
+.agent-done-check{
+  position:absolute;inset:0;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;opacity:0;transition:opacity .4s;
+  background:rgba(0,255,120,.08);
+}
+.agent.done .agent-done-check{opacity:1;}
+
+/* LAYER LABELS */
+.layer-label{
+  position:absolute;
+  font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.12em;
+  text-transform:uppercase;color:rgba(0,180,255,.25);
+  pointer-events:none;white-space:nowrap;
+}
+
+/* SIDE PANEL */
+.side{
+  width:260px;flex-shrink:0;
+  background:rgba(2,8,20,.85);border-left:1px solid rgba(0,180,255,.08);
+  display:flex;flex-direction:column;padding:14px 14px;gap:14px;
+  backdrop-filter:blur(10px);overflow-y:auto;
+}
+.side-title{font-family:'Space Mono',monospace;font-size:8px;letter-spacing:.14em;text-transform:uppercase;
+  color:rgba(0,180,255,.35);margin-bottom:7px;padding-bottom:5px;border-bottom:1px solid rgba(0,180,255,.07);}
+.steps-list{display:flex;flex-direction:column;gap:3px;}
+.step-item{display:flex;align-items:center;gap:8px;padding:7px 9px;border-radius:5px;
+  border:1px solid rgba(255,255,255,.04);cursor:pointer;transition:all .25s;font-size:11px;font-weight:600;}
+.step-item:hover{border-color:rgba(0,180,255,.2);background:rgba(0,180,255,.04);}
+.step-item.active{border-color:#00b4ff;background:rgba(0,180,255,.1);color:#fff;box-shadow:0 0 12px rgba(0,180,255,.12);}
+.step-item.done{border-color:rgba(0,255,120,.2);background:rgba(0,255,120,.04);color:rgba(0,255,120,.8);}
+.step-item.waiting{opacity:.35;}
+.step-num{width:20px;height:20px;border-radius:50%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+  display:flex;align-items:center;justify-content:center;font-family:'Space Mono',monospace;font-size:8px;font-weight:700;flex-shrink:0;transition:all .3s;}
+.step-item.active .step-num{background:#00b4ff;color:#000;border-color:#00b4ff;box-shadow:0 0 10px #00b4ff;}
+.step-item.done .step-num{background:#00ff78;color:#000;border-color:#00ff78;}
+.step-emoji{font-size:13px;flex-shrink:0;}
+
+.log-box{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:0;
+  scrollbar-width:thin;scrollbar-color:rgba(0,180,255,.12) transparent;min-height:100px;}
+.log-row{display:flex;flex-direction:column;gap:1px;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.03);
+  animation:logslide .3s ease forwards;}
+@keyframes logslide{from{opacity:0;transform:translateX(-6px);}to{opacity:1;transform:none;}}
+.log-agent{font-family:'Space Mono',monospace;font-size:8px;font-weight:700;display:flex;align-items:center;gap:5px;}
+.log-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.log-msg{font-size:9.5px;color:rgba(180,210,255,.6);line-height:1.5;padding-left:10px;}
+.log-time{font-family:'Space Mono',monospace;font-size:7px;color:rgba(0,180,255,.22);margin-left:auto;}
+
+/* AGENT INFO PANEL - bottom left */
+.agent-info{
+  position:fixed;bottom:20px;left:20px;z-index:200;
+  width:260px;
+  background:rgba(2,10,24,.95);
+  border:1px solid var(--info-color,rgba(0,180,255,.3));
+  border-radius:8px;padding:12px 14px;
+  box-shadow:0 0 30px color-mix(in srgb,var(--info-color,#00b4ff) 20%,transparent);
+  backdrop-filter:blur(12px);
+  opacity:0;transform:translateY(10px);
+  transition:opacity .35s ease, transform .35s ease, border-color .3s, box-shadow .3s;
+  pointer-events:none;
+}
+.agent-info.visible{opacity:1;transform:translateY(0);}
+.agent-info-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+.agent-info-orb{
+  width:38px;height:38px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;font-size:18px;
+  border:1.5px solid var(--info-color,#00b4ff);
+  background:color-mix(in srgb,var(--info-color,#00b4ff) 10%,transparent);
+  box-shadow:0 0 14px color-mix(in srgb,var(--info-color,#00b4ff) 30%,transparent);
+  animation:info-pulse 2s ease-in-out infinite;
+}
+@keyframes info-pulse{
+  0%,100%{box-shadow:0 0 10px color-mix(in srgb,var(--info-color,#00b4ff) 25%,transparent);}
+  50%{box-shadow:0 0 22px color-mix(in srgb,var(--info-color,#00b4ff) 50%,transparent);}
+}
+.agent-info-name{font-size:13px;font-weight:800;color:#fff;line-height:1.2;}
+.agent-info-badge{
+  font-family:'Space Mono',monospace;font-size:7px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--info-color,#00b4ff);border:1px solid currentColor;
+  padding:1px 6px;border-radius:2px;margin-top:3px;
+  display:inline-block;
+  background:color-mix(in srgb,var(--info-color,#00b4ff) 10%,transparent);
+}
+.agent-info-desc{
+  font-family:'Space Mono',monospace;font-size:8.5px;
+  color:rgba(160,210,255,.7);line-height:1.6;margin-bottom:8px;
+}
+.agent-info-ticker{
+  font-family:'Space Mono',monospace;font-size:8px;
+  color:var(--info-color,#00b4ff);
+  padding:5px 8px;border-radius:4px;
+  background:color-mix(in srgb,var(--info-color,#00b4ff) 8%,transparent);
+  border-left:2px solid var(--info-color,#00b4ff);
+  min-height:22px;
+  animation:ticker-blink .8s ease-in-out infinite alternate;
+}
+@keyframes ticker-blink{from{opacity:.7;}to{opacity:1;}}
+
+/* TOAST */
+.toast{position:fixed;top:60px;right:14px;z-index:500;font-family:'Space Mono',monospace;font-size:9.5px;
+  padding:9px 14px;border-radius:5px;background:rgba(2,12,28,.97);border:1px solid rgba(0,180,255,.35);
+  color:#c8e6ff;max-width:230px;line-height:1.5;box-shadow:0 0 26px rgba(0,180,255,.15);
+  animation:tin .35s cubic-bezier(.34,1.56,.64,1);transition:opacity .4s,transform .4s;}
+.toast.out{opacity:0;transform:translateX(16px);}
+@keyframes tin{from{opacity:0;transform:translateX(16px);}to{opacity:1;transform:none;}}
+.toast-head{font-weight:700;font-size:10px;margin-bottom:3px;display:flex;align-items:center;gap:5px;}
+</style>
+</head>
+<body>
+<div class="bg-grid"></div>
+<canvas id="bgc"></canvas>
+<div id="toasts"></div>
+<div class="agent-info" id="agentInfo">
+  <div class="agent-info-top">
+    <div class="agent-info-orb" id="infoOrb">🤖</div>
+    <div>
+      <div class="agent-info-name" id="infoName">Agent</div>
+      <div class="agent-info-badge" id="infoBadge">role</div>
+    </div>
+  </div>
+  <div class="agent-info-desc" id="infoDesc">—</div>
+  <div class="agent-info-ticker" id="infoTicker">—</div>
+</div>
+
+<div class="shell">
+  <div class="topbar">
+    <div class="logo">
+      <div class="logo-icon">🏥</div>
+      <div>
+        <div class="logo-text">Patient Intelligence Agent Network</div>
+        <div class="logo-sub">// 13 agents · rag · vector-db · blockchain</div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="btn" id="btn-prev" onclick="prev()" disabled>‹ Prev</button>
+      <button class="btn go" id="btn-next" onclick="next()">Next ›</button>
+      <button class="btn primary" onclick="autoRun()">▶ Auto Run</button>
+      <button class="btn" onclick="reset()">↺ Reset</button>
+      <div class="speed-ctrl">
+        <span>Speed</span>
+        <input type="range" id="spd" min="600" max="3500" value="1800" step="100"
+          oninput="spd=+this.value;document.getElementById('spdv').textContent=(spd/1000).toFixed(1)+'s'">
+        <span id="spdv">1.8s</span>
+      </div>
+    </div>
+  </div>
+  <div class="prog-track"><div class="prog-fill" id="prog"></div></div>
+  <div class="banner" id="bnr">
+    <div class="banner-step" id="bnum">—</div>
+    <div class="banner-msg" id="bmsg">Press <strong>Next</strong> to step through the pipeline, or <strong>Auto Run</strong> to watch all agents fire automatically.</div>
+  </div>
+
+  <div class="body">
+    <div class="network-wrap" id="netwrap">
+      <svg id="netsvg" xmlns="http://www.w3.org/2000/svg"></svg>
+      <!-- agents injected by JS -->
+    </div>
+    <div class="side">
+      <div><div class="side-title">Pipeline Steps</div><div class="steps-list" id="step-list"></div></div>
+      <div><div class="side-title">Activity Log</div><div class="log-box" id="logbox"></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── BG PARTICLES ──
+const bgc=document.getElementById('bgc'),bx=bgc.getContext('2d');
+let W=0,H=0,pts=[];
+function resizeBg(){W=bgc.width=window.innerWidth;H=bgc.height=window.innerHeight;}
+resizeBg();window.addEventListener('resize',()=>{resizeBg();layoutAgents();drawConnectors();});
+for(let i=0;i<50;i++) pts.push({x:Math.random()*2000,y:Math.random()*1200,vx:(Math.random()-.5)*.2,vy:(Math.random()-.5)*.2,r:Math.random()*1.4+.4,a:Math.random()*.4+.15});
+function drawBg(){
+  bx.clearRect(0,0,W,H);
+  for(let i=0;i<pts.length;i++){
+    const p=pts[i];p.x+=p.vx;p.y+=p.vy;
+    if(p.x<0)p.x=W;if(p.x>W)p.x=0;if(p.y<0)p.y=H;if(p.y>H)p.y=0;
+    bx.beginPath();bx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    bx.fillStyle=`rgba(0,180,255,${p.a*.15})`;bx.fill();
+    for(let j=i+1;j<pts.length;j++){
+      const q=pts[j],dx=p.x-q.x,dy=p.y-q.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d<100){bx.beginPath();bx.moveTo(p.x,p.y);bx.lineTo(q.x,q.y);bx.strokeStyle=`rgba(0,180,255,${(1-d/100)*.03})`;bx.lineWidth=.5;bx.stroke();}
+    }
+  }
+  requestAnimationFrame(drawBg);
+}
+drawBg();
+
+// ── AGENT DEFINITIONS ──
+// Each agent: id, emoji, label, sublabel, color, badge
+const AGENTS = [
+  {id:'n0',  emoji:'👤', label:'Patient',        sub:'Medical Records',    nc:'#00b4ff', badge:'input',        desc:'Securely uploads PDFs, DICOM scans, lab results and visit history. Entry point to the entire intelligence pipeline.'},
+  {id:'n1',  emoji:'🔍', label:'OCR Agent',       sub:'Tesseract v5',       nc:'#22d3ee', badge:'extractor',    desc:'Runs Tesseract v5 OCR to extract text from scanned documents, handwritten notes and image-based PDFs at 98.4% accuracy.'},
+  {id:'n2',  emoji:'✅', label:'Doc Validator',   sub:'Checksum + Format',  nc:'#06b6d4', badge:'validator',    desc:'Verifies document checksums, format integrity and completeness before any data enters the processing pipeline.'},
+  {id:'n3',  emoji:'⚙️', label:'Ingestion',       sub:'FHIR R4 → JSON-LD',  nc:'#00b4ff', badge:'transformer',  desc:'Converts raw extracted text into a structured FHIR R4 compliant patient profile as JSON-LD with 34 standardized fields.'},
+  {id:'n4',  emoji:'🧠', label:'RAG Indexer',     sub:'1536-dim vectors',   nc:'#a855f7', badge:'indexer',      desc:'Chunks patient data into semantic segments and embeds them as 1536-dimensional vectors using OpenAI ada-002 for semantic search.'},
+  {id:'n5',  emoji:'💾', label:'Memory Agent',    sub:'Episodic store',     nc:'#c084fc', badge:'memory',       desc:'Retrieves episodic and semantic memories from long-term patient history store — loading past diagnoses, treatments and outcomes.'},
+  {id:'n6',  emoji:'🗄️', label:'Vector DB',       sub:'Pinecone · 12M',     nc:'#7c3aed', badge:'vector-db',    desc:'Pinecone vector database storing 12M patient embeddings. Provides nearest-neighbour semantic search at 3ms p99 latency.'},
+  {id:'n7',  emoji:'🎯', label:'Orchestrator',    sub:'Dispatch + Route',   nc:'#ff7b2e', badge:'orchestrator', desc:'Master coordinator — receives clinical query, builds full context window, creates execution plan and dispatches 4 analysis agents in parallel.'},
+  {id:'n8',  emoji:'📊', label:'Analysis Agent',  sub:'Trend detection',    nc:'#ff7b2e', badge:'analyzer',     desc:'Detects clinical patterns in lab values and vital signs over time. Identified HbA1c worsening trend of +1.4 units over 6 months.'},
+  {id:'n9',  emoji:'💊', label:'Drug Interact.',  sub:'FDA-DB · DrugBank',  nc:'#f43f5e', badge:'safety',       desc:'Scans all active medications against FDA-DB and DrugBank databases. Flagged critical Warfarin + Aspirin interaction with elevated bleeding risk.'},
+  {id:'n10', emoji:'🔎', label:'Pattern Detect.', sub:'LSTM anomaly',       nc:'#eab308', badge:'detector',     desc:'Uses LSTM neural network to identify anomalies, outliers and rare disease markers. Found irregular BP pattern matching Type-2 hypertensive profile.'},
+  {id:'n11', emoji:'📋', label:'Guidelines',      sub:'WHO 2024 · ADA',     nc:'#14b8a6', badge:'compliance',   desc:'Cross-references patient data against WHO 2024, ADA and AHA/ACC clinical guidelines. Identified overdue HbA1c retest per ADA Q3 protocol.'},
+  {id:'n12', emoji:'🚨', label:'Triage Agent',    sub:'P1–P4 priority',     nc:'#f43f5e', badge:'classifier',   desc:'Aggregates all analysis findings and assigns clinical priority (P1–P4). Assigned P2 Urgent — requires Cardiology + Endocrinology within 4 hours.'},
+  {id:'n13', emoji:'📝', label:'Transfer Agent',  sub:'SBAR 60-sec brief',  nc:'#3b82f6', badge:'summarizer',   desc:'Compiles a 60-second SBAR (Situation-Background-Assessment-Recommendation) doctor brief with 3 prioritized action items and specialist referral flags.'},
+  {id:'n14', emoji:'🩺', label:'Second Opinion',  sub:'ICD-11 validation',  nc:'#a855f7', badge:'evaluator',    desc:'Validates the proposed diagnosis against evidence base and ICD-11 codebook. Confirmed E11.65 (Type 2 Diabetes + Hypertension) at 87% confidence.'},
+  {id:'n15', emoji:'⚠️', label:'Risk Scorer',     sub:'APACHE-II · CHA₂DS₂',nc:'#ec4899', badge:'risk',         desc:'Computes multi-factor risk scores using validated clinical scales. Results: CHA₂DS₂-VASc = 4 (high stroke risk), APACHE-II = 12, Frailty Index = 2.'},
+  {id:'n16', emoji:'🖥️', label:'Dashboard',       sub:'Real-time viz',      nc:'#00b4ff', badge:'dashboard',    desc:'Renders the doctor-facing dashboard with live lab trend graphs, medication conflict alerts and risk score visualizations for the 60-sec clinical brief.'},
+  {id:'n17', emoji:'📱', label:'WhatsApp',         sub:'Dr. Sharma alert',   nc:'#22c55e', badge:'messenger',    desc:'Sends encrypted patient summary and critical alerts directly to the assigned physician\'s phone via WhatsApp Business API. Delivery confirmed.'},
+  {id:'n18', emoji:'🏥', label:'EHR Sync',         sub:'FHIR R4 sync',       nc:'#ff7b2e', badge:'integration',  desc:'Auto-updates the hospital Electronic Health Record via FHIR R4 API. Writes new diagnosis codes, generates order suggestions and flags pending reviews.'},
+  {id:'n19', emoji:'🔒', label:'Blockchain',       sub:'SHA-256 audit',      nc:'#a855f7', badge:'audit',        desc:'Hashes all 16 agent actions and decisions using SHA-256 and commits them to an immutable blockchain audit trail. Block #84721 — tamper-proof compliance log.'},
+];
+
+// ── CONNECTION DEFINITIONS (from → to, label on wire) ──
+// These are always-present connections; we animate them per step
+const CONNS = [
+  {id:'c0',  from:'n0',  to:'n1',  label:'raw docs'},
+  {id:'c1',  from:'n0',  to:'n2',  label:'raw docs'},
+  {id:'c2',  from:'n1',  to:'n3',  label:'extracted text'},
+  {id:'c3',  from:'n2',  to:'n3',  label:'validated'},
+  {id:'c4',  from:'n3',  to:'n4',  label:'profile JSON'},
+  {id:'c5',  from:'n3',  to:'n5',  label:'patient id'},
+  {id:'c6',  from:'n4',  to:'n6',  label:'vectors'},
+  {id:'c7',  from:'n5',  to:'n6',  label:'episodes'},
+  {id:'c8',  from:'n6',  to:'n7',  label:'indexed ctx'},
+  {id:'c9',  from:'n7',  to:'n8',  label:'dispatch'},
+  {id:'c10', from:'n7',  to:'n9',  label:'dispatch'},
+  {id:'c11', from:'n7',  to:'n10', label:'dispatch'},
+  {id:'c12', from:'n7',  to:'n11', label:'dispatch'},
+  {id:'c13', from:'n8',  to:'n12', label:'findings'},
+  {id:'c14', from:'n9',  to:'n12', label:'conflicts'},
+  {id:'c15', from:'n10', to:'n12', label:'anomalies'},
+  {id:'c16', from:'n11', to:'n12', label:'gaps'},
+  {id:'c17', from:'n12', to:'n13', label:'triage'},
+  {id:'c18', from:'n12', to:'n14', label:'diagnosis'},
+  {id:'c19', from:'n12', to:'n15', label:'risk req'},
+  {id:'c20', from:'n13', to:'n16', label:'SBAR brief'},
+  {id:'c21', from:'n14', to:'n16', label:'validated dx'},
+  {id:'c22', from:'n15', to:'n16', label:'risk scores'},
+  {id:'c23', from:'n16', to:'n17', label:'alert'},
+  {id:'c24', from:'n16', to:'n18', label:'sync req'},
+  {id:'c25', from:'n16', to:'n19', label:'audit req'},
+];
+
+// ── POSITIONS (% of network area, will be scaled) ──
+const POS = {
+  n0:  {cx:0.05, cy:0.50},
+  n1:  {cx:0.17, cy:0.28},
+  n2:  {cx:0.17, cy:0.72},
+  n3:  {cx:0.30, cy:0.50},
+  n4:  {cx:0.42, cy:0.22},
+  n5:  {cx:0.42, cy:0.50},
+  n6:  {cx:0.42, cy:0.78},
+  n7:  {cx:0.54, cy:0.50},
+  n8:  {cx:0.65, cy:0.13},
+  n9:  {cx:0.65, cy:0.37},
+  n10: {cx:0.65, cy:0.63},
+  n11: {cx:0.65, cy:0.87},
+  n12: {cx:0.76, cy:0.50},
+  n13: {cx:0.86, cy:0.20},
+  n14: {cx:0.86, cy:0.50},
+  n15: {cx:0.86, cy:0.80},
+  n16: {cx:0.95, cy:0.13},
+  n17: {cx:0.95, cy:0.37},
+  n18: {cx:0.95, cy:0.63},
+  n19: {cx:0.95, cy:0.87},
+};
+
+// ── STEPS ──
+const STEPS = [
+  {label:"Patient Upload",      emoji:"👤", color:"#00b4ff",
+   nodes:["n0"], activeConns:[],
+   msg:"Patient uploads PDFs, scans, lab results and visit history into the pipeline.",
+   logs:[{a:"PatientInput",c:"#00b4ff",m:"4 document types received — PDF, DICOM scan, lab CSV, history PDF"}]},
+
+  {label:"OCR + Validation",    emoji:"🔍", color:"#22d3ee",
+   nodes:["n1","n2"], activeConns:["c0","c1"],
+   msg:"OCR Agent extracts all text. Doc Validator Agent verifies checksums and format integrity in parallel.",
+   logs:[{a:"OCRAgent",c:"#22d3ee",m:"Extracted 847 tokens from 4 documents. Confidence 98.4%"},{a:"ValidatorAgent",c:"#06b6d4",m:"Checksum ✓ · Format: PDF/DICOM/CSV all valid"}]},
+
+  {label:"Data Structuring",    emoji:"⚙️", color:"#00b4ff",
+   nodes:["n3"], activeConns:["c2","c3"],
+   msg:"Ingestion Agent converts raw text into structured FHIR R4 patient profile JSON-LD.",
+   logs:[{a:"IngestionAgent",c:"#00b4ff",m:"Patient profile built · 34 fields · FHIR R4 compliant · 2.1 KB"}]},
+
+  {label:"RAG + Memory",        emoji:"🧠", color:"#a855f7",
+   nodes:["n4","n5","n6"], activeConns:["c4","c5","c6","c7"],
+   msg:"RAG Indexer embeds data as 1536-dim vectors. Memory Agent loads 14 past visit episodes. Vector DB stores all.",
+   logs:[{a:"RAGIndexer",c:"#a855f7",m:"34 chunks → Pinecone updated (12M total)"},{a:"MemoryAgent",c:"#c084fc",m:"14 episodic memories loaded from 2022–2024"},{a:"VectorDB",c:"#7c3aed",m:"Nearest-neighbour ready · 3ms p99 latency"}]},
+
+  {label:"Orchestrator",        emoji:"🎯", color:"#ff7b2e",
+   nodes:["n7"], activeConns:["c8"],
+   msg:"Orchestrator receives clinical query, retrieves vector context, builds plan and dispatches 4 agents in parallel.",
+   logs:[{a:"Orchestrator",c:"#ff7b2e",m:"Context built · 4 agents scheduled · plan: ANALYSIS|DRUG|PATTERN|GUIDELINE"}]},
+
+  {label:"Parallel Analysis",   emoji:"⚡", color:"#ff7b2e",
+   nodes:["n8","n9","n10","n11"], activeConns:["c9","c10","c11","c12"],
+   msg:"4 agents fire simultaneously — Clinical Analysis, Drug Interaction, Pattern Detection and Guidelines.",
+   logs:[{a:"AnalysisAgent",c:"#ff7b2e",m:"⚠ HbA1c worsening over 6 months (+1.4 rise)"},{a:"DrugAgent",c:"#f43f5e",m:"⚠ CONFLICT: Warfarin + Aspirin — bleeding risk"},{a:"PatternAgent",c:"#eab308",m:"Irregular BP pattern → Type-2 hypertensive profile"},{a:"GuidelineAgent",c:"#14b8a6",m:"HbA1c retest overdue — ADA 2024 Q3 interval"}]},
+
+  {label:"Triage Decision",     emoji:"🚨", color:"#f43f5e",
+   nodes:["n12"], activeConns:["c13","c14","c15","c16"],
+   msg:"Triage Agent evaluates all findings, assigns Priority P2, routes to Cardiology + Endocrinology.",
+   logs:[{a:"TriageAgent",c:"#f43f5e",m:"P2 (Urgent) · Cardiology + Endocrinology · SLA: 4hr window"}]},
+
+  {label:"Brief + Risk",        emoji:"📝", color:"#3b82f6",
+   nodes:["n13","n14","n15"], activeConns:["c17","c18","c19"],
+   msg:"Transfer Agent compiles 60-sec SBAR. Second Opinion validates at 87% confidence. Risk Scorer computes CHA₂DS₂=4.",
+   logs:[{a:"TransferAgent",c:"#3b82f6",m:"SBAR brief compiled · 3 action items · referral flag set"},{a:"SecondOpinion",c:"#a855f7",m:"87% confidence · ICD-11: E11.65 (T2DM + hypertension)"},{a:"RiskScorer",c:"#ec4899",m:"CHA₂DS₂: 4 (high) · APACHE-II: 12 · Frailty: 2"}]},
+
+  {label:"Output Delivery",     emoji:"🏥", color:"#14e8c8",
+   nodes:["n16","n17","n18","n19"], activeConns:["c20","c21","c22","c23","c24","c25"],
+   msg:"Dashboard updated, WhatsApp alert sent to Dr. Sharma, EHR synced, and all 16 actions committed to blockchain.",
+   logs:[{a:"Dashboard",c:"#00b4ff",m:"Lab graphs live · Medication alert · Risk widget on"},{a:"WhatsApp",c:"#22c55e",m:"Dr. Sharma notified · Delivery confirmed ✓"},{a:"EHRSync",c:"#ff7b2e",m:"FHIR R4 updated · Orders generated"},{a:"BlockchainLog",c:"#a855f7",m:"Block #84721 committed · 16 actions hashed · Immutable"}]},
+];
+
+// ── TICKERS ──
+const TK={
+  n0:["→ uploading records...","→ 4 files queued","→ transfer complete"],
+  n1:["→ scanning page 1/7...","→ page 3/7...","→ OCR pass done"],
+  n2:["→ verifying checksum...","→ format check...","→ integrity OK"],
+  n3:["→ mapping FHIR schema...","→ building JSON-LD...","→ 34 fields mapped"],
+  n4:["→ embedding chunk 4/34...","→ chunk 12/34...","→ index complete"],
+  n5:["→ loading episodes...","→ 14 records found","→ context loaded"],
+  n6:["→ storing vectors...","→ indexing...","→ 3ms p99 ready"],
+  n7:["→ building context...","→ dispatching 4 agents...","→ plan ready"],
+  n8:["→ HbA1c trend ↑","→ creatinine stable","→ BP anomaly"],
+  n9:["→ scanning 8 meds...","→ Warfarin conflict!","→ flagging"],
+  n10:["→ LSTM scan...","→ BP irregularity","→ rare marker check"],
+  n11:["→ ADA 2024 check...","→ HbA1c overdue","→ gap found"],
+  n12:["→ classifying...","→ P2 assigned","→ Cardiology route"],
+  n13:["→ writing SBAR...","→ 3 action items","→ brief ready"],
+  n14:["→ ICD-11 check...","→ 87% confidence","→ validated"],
+  n15:["→ APACHE-II...","→ CHA₂DS₂=4 (high)","→ frailty: 2"],
+  n16:["→ rendering charts...","→ alert live","→ dashboard up"],
+  n17:["→ composing msg...","→ sending Dr. Sharma","→ delivered ✓"],
+  n18:["→ FHIR R4 sync...","→ orders ready","→ EHR updated"],
+  n19:["→ hashing #12...","→ hashing #14...","→ block committed"],
+};
+
+// ── STATE ──
+let curStep=-1,autoTimer=null,spd=1800,TKT={},agentEls={},agentPositions={};
+let activeSignals=[]; // animated signal dots on SVG
+
+// ── BUILD AGENT HTML ELEMENTS ──
+function buildAgents(){
+  const wrap=document.getElementById('netwrap');
+  // remove old
+  wrap.querySelectorAll('.agent').forEach(e=>e.remove());
+  wrap.querySelectorAll('.layer-label').forEach(e=>e.remove());
+  agentEls={};
+
+  AGENTS.forEach(a=>{
+    const div=document.createElement('div');
+    div.className='agent idle';
+    div.id='ag_'+a.id;
+    div.style.setProperty('--nc',a.nc);
+    div.innerHTML=`
+      <div class="agent-orb" style="background:radial-gradient(circle at 35% 35%,color-mix(in srgb,${a.nc} 15%,transparent),rgba(0,0,0,.5))">
+        <span style="position:relative;z-index:1">${a.emoji}</span>
+        <div class="agent-done-check">✓</div>
+      </div>
+      <div class="agent-badge" style="--nc:${a.nc}">${a.badge}</div>
+      <div class="agent-tick" id="tk_${a.id}"></div>
+      <div class="agent-label">${a.label}</div>
+      <div class="agent-sub">${a.sub}</div>`;
+    wrap.appendChild(div);
+    agentEls[a.id]=div;
+  });
+}
+
+// ── LAYOUT AGENTS ──
+function layoutAgents(){
+  const wrap=document.getElementById('netwrap');
+  const W=wrap.clientWidth, H=wrap.clientHeight;
+  AGENTS.forEach(a=>{
+    const p=POS[a.id];
+    const el=agentEls[a.id];
+    if(!el||!p) return;
+    const x=p.cx*W, y=p.cy*H;
+    el.style.left=x+'px';
+    el.style.top=y+'px';
+    agentPositions[a.id]={x,y};
+  });
+  drawConnectors();
+}
+
+// ── SVG CONNECTORS ──
+const SVG_NS='http://www.w3.org/2000/svg';
+
+function drawConnectors(){
+  const svg=document.getElementById('netsvg');
+  // clear old static lines (keep signals)
+  svg.querySelectorAll('.conn-line,.conn-label,.conn-glow,.defs-container').forEach(e=>e.remove());
+
+  // defs for glow filters
+  const defs=document.createElementNS(SVG_NS,'defs');
+  defs.classList.add('defs-container');
+  const filter=document.createElementNS(SVG_NS,'filter');
+  filter.id='wire-glow';
+  const fe=document.createElementNS(SVG_NS,'feGaussianBlur');
+  fe.setAttribute('in','SourceGraphic');fe.setAttribute('stdDeviation','2');
+  filter.appendChild(fe);
+  defs.appendChild(filter);
+  svg.insertBefore(defs,svg.firstChild);
+
+  CONNS.forEach(c=>{
+    const fromP=agentPositions[c.from];
+    const toP=agentPositions[c.to];
+    if(!fromP||!toP) return;
+
+    // slight curve via quadratic bezier
+    const mx=(fromP.x+toP.x)/2, my=(fromP.y+toP.y)/2;
+    const dx=toP.x-fromP.x, dy=toP.y-fromP.y;
+    const len=Math.sqrt(dx*dx+dy*dy);
+    const perp={x:-dy/len*18,y:dx/len*18};
+    const cpx=mx+perp.x, cpy=my+perp.y;
+    const d=`M${fromP.x},${fromP.y} Q${cpx},${cpy} ${toP.x},${toP.y}`;
+
+    // base wire
+    const path=document.createElementNS(SVG_NS,'path');
+    path.classList.add('conn-line');
+    path.id='cl_'+c.id;
+    path.setAttribute('d',d);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke','rgba(0,180,255,0.06)');
+    path.setAttribute('stroke-width','1.2');
+    path.setAttribute('stroke-linecap','round');
+    svg.appendChild(path);
+
+    // glow wire (hidden unless active)
+    const glow=document.createElementNS(SVG_NS,'path');
+    glow.classList.add('conn-glow');
+    glow.id='cg_'+c.id;
+    glow.setAttribute('d',d);
+    glow.setAttribute('fill','none');
+    glow.setAttribute('stroke','rgba(0,180,255,0)');
+    glow.setAttribute('stroke-width','2');
+    glow.setAttribute('stroke-linecap','round');
+    glow.setAttribute('filter','url(#wire-glow)');
+    svg.appendChild(glow);
+  });
+}
+
+// ── ACTIVATE / DEACTIVATE WIRE ──
+function setWire(connId, state, color){
+  const base=document.getElementById('cl_'+connId);
+  const glow=document.getElementById('cg_'+connId);
+  if(!base) return;
+  if(state==='active'){
+    base.setAttribute('stroke',color||'rgba(0,180,255,0.5)');
+    base.setAttribute('stroke-width','2');
+    glow.setAttribute('stroke',color||'rgba(0,180,255,0.4)');
+    glow.setAttribute('stroke-width','3');
+    spawnSignals(connId,color);
+  } else if(state==='done'){
+    base.setAttribute('stroke','rgba(0,255,120,0.25)');
+    base.setAttribute('stroke-width','1.5');
+    glow.setAttribute('stroke','rgba(0,255,120,0.15)');
+    glow.setAttribute('stroke-width','2');
+  } else {
+    base.setAttribute('stroke','rgba(0,180,255,0.06)');
+    base.setAttribute('stroke-width','1.2');
+    glow.setAttribute('stroke','rgba(0,180,255,0)');
+  }
+}
+
+// ── SIGNAL DOTS ALONG WIRE ──
+let sigId=0;
+function spawnSignals(connId, color){
+  const conn=CONNS.find(c=>c.id===connId);
+  if(!conn) return;
+  const fromP=agentPositions[conn.from];
+  const toP=agentPositions[conn.to];
+  if(!fromP||!toP) return;
+  const c=CONNS.find(x=>x.id===connId);
+  const mx=(fromP.x+toP.x)/2,my=(fromP.y+toP.y)/2;
+  const dx=toP.x-fromP.x,dy=toP.y-fromP.y;
+  const len=Math.sqrt(dx*dx+dy*dy);
+  const perp={x:-dy/len*18,y:dx/len*18};
+  const cpx=mx+perp.x,cpy=my+perp.y;
+
+  // fire multiple pulses
+  const count=3;
+  for(let i=0;i<count;i++){
+    setTimeout(()=>animateSignal(fromP,{x:cpx,y:cpy},toP,color||'#00b4ff'),i*320);
+  }
+}
+
+function animateSignal(from,cp,to,color){
+  const svg=document.getElementById('netsvg');
+  const dot=document.createElementNS(SVG_NS,'circle');
+  dot.setAttribute('r','4');
+  dot.setAttribute('fill',color);
+  dot.style.filter=`drop-shadow(0 0 5px ${color})`;
+  svg.appendChild(dot);
+
+  const dur=700;
+  const start=performance.now();
+  function step(now){
+    const t=Math.min((now-start)/dur,1);
+    const u=1-t;
+    // quadratic bezier
+    const x=u*u*from.x+2*u*t*cp.x+t*t*to.x;
+    const y=u*u*from.y+2*u*t*cp.y+t*t*to.y;
+    dot.setAttribute('cx',x);dot.setAttribute('cy',y);
+    dot.setAttribute('opacity',t<0.1?t*10:t>0.85?(1-t)/0.15:1);
+    if(t<1) requestAnimationFrame(step);
+    else dot.remove();
+  }
+  requestAnimationFrame(step);
+}
+
+// ── AGENT STATE ──
+function setAgent(id,state){
+  const el=agentEls[id];if(!el) return;
+  el.classList.remove('idle','running','done');
+  el.classList.add(state);
+}
+
+// ── AGENT INFO PANEL ──
+let infoTickerTimer=null;
+function showInfoPanel(id){
+  const a=AGENTS.find(x=>x.id===id);if(!a) return;
+  const panel=document.getElementById('agentInfo');
+  panel.style.setProperty('--info-color',a.nc);
+  document.getElementById('infoOrb').textContent=a.emoji;
+  document.getElementById('infoOrb').style.borderColor=a.nc;
+  document.getElementById('infoName').textContent=a.label;
+  document.getElementById('infoBadge').textContent=a.badge;
+  document.getElementById('infoBadge').style.color=a.nc;
+  document.getElementById('infoBadge').style.borderColor=a.nc;
+  document.getElementById('infoDesc').textContent=a.desc||'';
+  // start ticker in panel
+  clearInterval(infoTickerTimer);
+  const msgs=TK[id];
+  const tickEl=document.getElementById('infoTicker');
+  if(msgs){
+    let i=0;tickEl.textContent=msgs[0];
+    infoTickerTimer=setInterval(()=>{i=(i+1)%msgs.length;tickEl.textContent=msgs[i];},700);
+  } else {tickEl.textContent='Processing...';}
+  panel.classList.add('visible');
+}
+function hideInfoPanel(){
+  clearInterval(infoTickerTimer);
+  document.getElementById('agentInfo').classList.remove('visible');
+}
+// When multiple agents run, show the first one and cycle
+let infoCycleTimer=null;
+function showInfoForAgents(ids){
+  clearInterval(infoCycleTimer);
+  if(ids.length===0){hideInfoPanel();return;}
+  let i=0;showInfoPanel(ids[i]);
+  if(ids.length>1){
+    infoCycleTimer=setInterval(()=>{i=(i+1)%ids.length;showInfoPanel(ids[i]);},2200);
+  }
+}
+
+// ── TICKER ──
+function startTk(id){
+  const msgs=TK[id];if(!msgs) return;
+  const el=document.getElementById('tk_'+id);if(!el) return;
+  let i=0;el.textContent=msgs[0];
+  TKT[id]=setInterval(()=>{i=(i+1)%msgs.length;el.textContent=msgs[i];},700);
+}
+function stopTk(id){clearInterval(TKT[id]);const el=document.getElementById('tk_'+id);if(el)el.textContent='';}
+
+// ── LOG ──
+let lc=0;
+function addLog(a,c,m){
+  lc++;
+  const box=document.getElementById('logbox');
+  const row=document.createElement('div');row.className='log-row';
+  row.innerHTML=`<div class="log-agent"><div class="log-dot" style="background:${c};box-shadow:0 0 5px ${c}"></div><span style="color:${c}">${a}</span><span class="log-time">T+${String(lc).padStart(2,'0')}s</span></div><div class="log-msg">${m}</div>`;
+  box.appendChild(row);box.scrollTop=box.scrollHeight;
+}
+
+// ── TOAST ──
+function showToast(emoji,title,body,color='#00b4ff'){
+  const c=document.getElementById('toasts');
+  const t=document.createElement('div');t.className='toast';
+  t.style.borderColor=color;
+  t.innerHTML=`<div class="toast-head" style="color:${color}">${emoji} ${title}</div><div style="font-size:8.5px;color:rgba(200,230,255,.7)">${body}</div>`;
+  c.appendChild(t);
+  setTimeout(()=>{t.classList.add('out');setTimeout(()=>t.remove(),500);},2800);
+}
+
+// ── SIDE LIST ──
+function buildList(){
+  const el=document.getElementById('step-list');el.innerHTML='';
+  STEPS.forEach((s,i)=>{
+    const d=document.createElement('div');d.className='step-item waiting';d.id='si'+i;
+    d.onclick=()=>{if(curStep>=0||i===0)goTo(i);};
+    d.innerHTML=`<div class="step-num">${i+1}</div><span class="step-emoji">${s.emoji}</span><span>${s.label}</span>`;
+    el.appendChild(d);
+  });
+}
+function updateList(cur){
+  STEPS.forEach((_,i)=>{
+    const d=document.getElementById('si'+i);d.classList.remove('waiting','active','done');
+    if(i<cur) d.classList.add('done');else if(i===cur) d.classList.add('active');else d.classList.add('waiting');
+  });
+}
+
+// ── PROGRESS ──
+function updateTrack(idx){document.getElementById('prog').style.width=(idx<0?0:((idx+1)/STEPS.length*100))+'%';}
+
+// ── RENDER STEP ──
+function render(idx){
+  const allIds=AGENTS.map(a=>a.id);
+  allIds.forEach(id=>{stopTk(id);setAgent(id,'idle');});
+  CONNS.forEach(c=>setWire(c.id,'idle'));
+
+  // mark past as done
+  for(let i=0;i<idx;i++){
+    const s=STEPS[i];
+    s.nodes.forEach(id=>setAgent(id,'done'));
+    s.activeConns.forEach(cid=>setWire(cid,'done'));
+  }
+
+  // activate current
+  const cur=STEPS[idx];
+  cur.nodes.forEach(id=>{setAgent(id,'running');startTk(id);});
+  showInfoForAgents(cur.nodes);
+
+  // Find color for each active conn based on the target node
+  cur.activeConns.forEach(cid=>{
+    const conn=CONNS.find(c=>c.id===cid);
+    if(!conn) return;
+    const targetAgent=AGENTS.find(a=>a.id===conn.to);
+    const col=targetAgent?targetAgent.nc:'#00b4ff';
+    setWire(cid,'active',col);
+  });
+
+  // Also continuously pulse active connections
+  startSignalLoop(cur.activeConns);
+
+  // Banner
+  document.getElementById('bnr').classList.add('live');
+  document.getElementById('bnum').textContent=`${idx+1} / ${STEPS.length}`;
+  document.getElementById('bmsg').innerHTML=`<strong>${cur.emoji} ${cur.label}</strong> — ${cur.msg}`;
+  updateTrack(idx);
+  cur.logs.forEach((l,li)=>setTimeout(()=>addLog(l.a,l.c,l.m),(li*300)+200));
+
+  if(idx===5)setTimeout(()=>showToast('⚡','Parallel Execution','4 agents fired simultaneously','#ff7b2e'),400);
+  if(idx===6)setTimeout(()=>showToast('🚨','Triage Alert','P2 · Cardiology + Endocrinology','#f43f5e'),400);
+  if(idx===8)setTimeout(()=>showToast('✅','Pipeline Complete','All stages done · Blockchain committed','#00ff9d'),400);
+
+  updateList(idx);
+  document.getElementById('btn-prev').disabled=idx===0;
+  document.getElementById('btn-next').disabled=idx===STEPS.length-1;
+
+  // finish → done after spd*0.75
+  setTimeout(()=>{
+    if(curStep!==idx) return;
+    stopSignalLoop();
+    cur.nodes.forEach(id=>{setAgent(id,'done');stopTk(id);});
+    cur.activeConns.forEach(cid=>setWire(cid,'done'));
+    hideInfoPanel();clearInterval(infoCycleTimer);
+  },spd*0.75);
+}
+
+// ── SIGNAL LOOP ──
+let sigLoopTimer=null;
+function startSignalLoop(connIds){
+  stopSignalLoop();
+  if(connIds.length===0) return;
+  function fire(){
+    connIds.forEach((cid,i)=>{
+      const conn=CONNS.find(c=>c.id===cid);
+      if(!conn) return;
+      const fromP=agentPositions[conn.from];
+      const toP=agentPositions[conn.to];
+      if(!fromP||!toP) return;
+      const mx=(fromP.x+toP.x)/2,my=(fromP.y+toP.y)/2;
+      const dx=toP.x-fromP.x,dy=toP.y-fromP.y;
+      const len=Math.sqrt(dx*dx+dy*dy);
+      const perp={x:-dy/len*18,y:dx/len*18};
+      const col=(AGENTS.find(a=>a.id===conn.to)||{nc:'#00b4ff'}).nc;
+      setTimeout(()=>animateSignal(fromP,{x:mx+perp.x,y:my+perp.y},toP,col),i*120);
+    });
+  }
+  fire();
+  sigLoopTimer=setInterval(fire,900);
+}
+function stopSignalLoop(){clearInterval(sigLoopTimer);}
+
+function goTo(idx){curStep=idx;stopSignalLoop();render(idx);}
+function next(){clearInterval(autoTimer);stopSignalLoop();if(curStep<STEPS.length-1)goTo(curStep+1);else if(curStep===-1)goTo(0);}
+function prev(){clearInterval(autoTimer);stopSignalLoop();if(curStep>0)goTo(curStep-1);}
+function autoRun(){
+  clearInterval(autoTimer);stopSignalLoop();reset();
+  setTimeout(()=>{
+    goTo(0);
+    autoTimer=setInterval(()=>{if(curStep<STEPS.length-1)goTo(curStep+1);else clearInterval(autoTimer);},spd);
+  },300);
+}
+function reset(){
+  clearInterval(autoTimer);stopSignalLoop();curStep=-1;lc=0;
+  AGENTS.forEach(a=>{stopTk(a.id);setAgent(a.id,'idle');});
+  CONNS.forEach(c=>setWire(c.id,'idle'));
+  updateList(-1);
+  document.getElementById('bnr').classList.remove('live');
+  document.getElementById('bnum').textContent='—';
+  document.getElementById('bmsg').textContent='Press Next to step through the pipeline, or Auto Run to watch all agents fire.';
+  document.getElementById('logbox').innerHTML='';
+  document.getElementById('btn-prev').disabled=true;
+  document.getElementById('btn-next').disabled=false;
+  updateTrack(-1);
+  hideInfoPanel();clearInterval(infoCycleTimer);
+  // remove all signal dots
+  document.querySelectorAll('#netsvg circle').forEach(e=>e.remove());
+  addLog('System','#00b4ff','Agent network online · 13 nodes ready · RAG index loaded');
+}
+
+// ── INIT ──
+buildAgents();
+buildList();
+// wait for layout
+requestAnimationFrame(()=>{
+  requestAnimationFrame(()=>{
+    layoutAgents();
+    addLog('System','#00b4ff','Agent network online · 13 nodes ready · RAG index loaded');
+  });
+});
+</script>
+</body>
+</html>
