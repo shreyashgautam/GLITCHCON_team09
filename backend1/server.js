@@ -1,4 +1,6 @@
-require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+}
 const http = require('http');
 const { Server } = require('socket.io');
 const path = require('path');
