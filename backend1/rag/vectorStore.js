@@ -101,6 +101,18 @@ function buildDocsFromBundle(bundle) {
     });
   }
 
+  for (const docRef of bundle.documents || []) {
+    const raw = String(docRef.raw_text || '').trim();
+    if (!raw) continue;
+    const uploaded = docRef.uploaded_at || 'DOC';
+    const type = docRef.type || 'document';
+    docs.push({
+      section: 'document',
+      date: uploaded,
+      text: `Uploaded ${type} on ${uploaded}. Extracted text:\n${raw.slice(0, 4000)}`,
+    });
+  }
+
   return docs;
 }
 

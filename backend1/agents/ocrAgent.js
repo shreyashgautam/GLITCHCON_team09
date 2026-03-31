@@ -2,7 +2,6 @@ require("dotenv").config();
 
 const fs = require("fs");
 const path = require("path");
-const Tesseract = require("tesseract.js");
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 function getGemini(apiKeyOverride) {
@@ -11,20 +10,47 @@ function getGemini(apiKeyOverride) {
   return new GoogleGenerativeAI(key);
 }
 
-async function extractRawText(filePath) {
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`File not found: ${filePath}`);
-  }
-
+function detectMimeType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
-  if (ext === ".txt") {
-    return fs.readFileSync(filePath, "utf8");
-  }
+  if (ext === ".pdf") return "application/pdf";
+  if (ext === ".png") return "image/png";
+  if (ext === ".jpg" || ext === ".jpeg") return "image/jpeg";
+  if (ext === ".webp") return "image/webp";
+  if (ext === ".gif") return "image/gif";
+  if (ext === ".txt") return "text/plain";
+  return "application/octet-stream";
+}
 
-  // Tesseract can read images directly. For PDFs this may work only if the
-  // runtime supports rasterization; otherwise caller should pre-convert pages.
-  const result = await Tesseract.recognize(filePath, "eng");
-  return result.data?.text || "";
+function buildExpectedSchema() {
+  return {
+    patient_name: "string|null",
+    date: "YYYY-MM-DD|null",
+    symptoms: ["string"],
+    medications: [
+      {
+        name: "string",
+        dose: "string|null",
+        frequency: "string|null",
+        route: "string|null",
+      },
+    ],
+    diagnosis: ["string"],
+    allergies: ["string"],
+    tests_recommended: ["string"],
+    clinical_summary: "string",
+    lab_results: [
+      {
+        test: "string",
+        value: "number|string|null",
+        unit: "string|null",
+        date: "YYYY-MM-DD|null",
+        status: "string|null",
+        referenceRange: "string|null",
+      },
+    ],
+    raw_text: "string",
+    extraction_warnings: ["string"],
+  };
 }
 
 function heuristicExtract(rawText) {
@@ -112,20 +138,106 @@ ${rawText.slice(0, 30000)}`;
 
 async function processUploadedDocument(filePath, apiKeyOverride, modelOverride) {
   try {
-    const rawText = await extractRawText(filePath);
-    if (!rawText || !rawText.trim()) {
-      return { success: false, error: "OCR produced empty text" };
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`File not found: ${filePath}`);
     }
 
-    const llmOutput = await llmStructure(rawText, apiKeyOverride, modelOverride);
-    const structured = llmOutput || heuristicExtract(rawText);
+    const genAI = getGemini(apiKeyOverride);
+    if (!genAI) {
+      return {
+        success: false,
+        error: "Gemini is not configured",
+        message: "Set GEMINI_API_KEY or pass apiKey in request body.",
+      };
+    }
+
+    const mimeType = detectMimeType(filePath);
+    const ext = path.extname(filePath).toLowerCase();
+
+    // Allow plain text uploads mainly for testing.
+    if (ext === ".txt") {
+      const rawText = fs.readFileSync(filePath, "utf8");
+      if (!rawText || !rawText.trim()) {
+        return { success: false, error: "Uploaded text file was empty" };
+      }
+      const llmOutput = await llmStructure(rawText, apiKeyOverride, modelOverride);
+      const structured = llmOutput || heuristicExtract(rawText);
+      return {
+        success: true,
+        source_file: filePath,
+        raw_text: rawText.slice(0, 20000),
+        structured,
+        parser: llmOutput ? "gemini_text_json_extractor" : "heuristic_fallback",
+      };
+    }
+
+    const buffer = fs.readFileSync(filePath);
+    const base64 = buffer.toString("base64");
+
+    const model = genAI.getGenerativeModel({
+      model: modelOverride || "gemini-3-flash-preview",
+      systemInstruction:
+        "You extract clinical information from medical documents. Return strict JSON only; no markdown, no prose.",
+    });
+
+    const prompt = `You are given a patient's uploaded clinical document (may include handwriting).
+Tasks:
+1) Transcribe the document to raw_text (best-effort, include uncertain words marked with [?]).
+2) Extract structured clinical data into the JSON schema below.
+3) If handwriting/values are unclear, populate extraction_warnings with short reasons and leave fields null rather than guessing.
+
+Return ONE JSON object only matching this schema (keys must match exactly):
+${JSON.stringify(buildExpectedSchema(), null, 2)}
+`;
+
+    const result = await model.generateContent({
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                data: base64,
+                mimeType,
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    const text = result.response?.text?.() || "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      return {
+        success: false,
+        error: "Gemini did not return JSON",
+        message: text.slice(0, 2000),
+      };
+    }
+
+    let structured = null;
+    try {
+      structured = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      return { success: false, error: "Failed to parse Gemini JSON", message: e.message };
+    }
+
+    const rawText = typeof structured?.raw_text === "string" ? structured.raw_text : "";
+    if (!rawText.trim()) {
+      // Still allow success if structured fields exist, but mark warning for downstream.
+      structured.extraction_warnings = Array.isArray(structured.extraction_warnings)
+        ? [...structured.extraction_warnings, "raw_text was empty; handwriting may be unreadable"]
+        : ["raw_text was empty; handwriting may be unreadable"];
+    }
 
     return {
       success: true,
       source_file: filePath,
       raw_text: rawText.slice(0, 20000),
       structured,
-      parser: llmOutput ? "gemini_json_extractor" : "heuristic_fallback",
+      parser: "gemini_vision_json_extractor",
     };
   } catch (error) {
     return {

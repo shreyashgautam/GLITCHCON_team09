@@ -829,6 +829,67 @@ router.get('/patient/:id/overdue-tests', async (req, res) => {
   }
 });
 
+router.get('/patient/:id/documents', async (req, res) => {
+  try {
+    if (!process.env.MONGO_URI || !MongoClient) {
+      return res.status(500).json({ error: 'MongoDB is not configured' });
+    }
+
+    const patientId = String(req.params.id || '').trim().toUpperCase();
+    if (!patientId) return res.status(400).json({ error: 'patientId required' });
+
+    const limitRaw = Number(req.query?.limit ?? 6);
+    const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 20) : 6;
+
+    const client = new MongoClient(process.env.MONGO_URI);
+    try {
+      await client.connect();
+      const dbName = String(process.env.MONGO_DB_NAME || '').trim();
+      const db = dbName ? client.db(dbName) : client.db();
+
+      const idRegex = new RegExp(`^${patientId}$`, 'i');
+      const docs = await db
+        .collection('documents')
+        .find(
+          { patient_id: { $regex: idRegex } },
+          {
+            projection: {
+              patient_id: 1,
+              uploaded_at: 1,
+              type: 1,
+              source: 1,
+              extractor: 1,
+              file: 1,
+              raw_text: 1,
+              structured: 1,
+            },
+          }
+        )
+        .sort({ uploaded_at: -1 })
+        .limit(limit)
+        .toArray();
+
+      return res.json(
+        (docs || []).map((d) => ({
+          document_id: d._id,
+          patient_id: d.patient_id,
+          uploaded_at: d.uploaded_at || null,
+          type: d.type || 'unknown',
+          source: d.source || null,
+          extractor: d.extractor || null,
+          file: d.file || null,
+          raw_text: d.raw_text || '',
+          extraction_warnings: d.structured?.extraction_warnings || [],
+        }))
+      );
+    } finally {
+      await client.close();
+    }
+  } catch (e) {
+    return res.status(500).json({ error: `Failed to load documents: ${e.message}` });
+  }
+});
+
 // Frontend compatibility: /records/* aliases
 router.get('/records/:id', (req, res) => {
   const patient = tools.get_patient_case_sheet(req.params.id);
@@ -1152,7 +1213,15 @@ router.post('/agent/ocr', uploadAny.any(), async (req, res) => {
     blockchain.addBlock('OCR_PROCESSING', 'SYSTEM', req.body.patientId || 'UNKNOWN', `OCR processing complete - ${result.success ? 'success' : 'failed'}`);
 
     if (result.success && req.body.patientId && req.body.autoIngest === 'true') {
-      const ingestion = await runIngestionAgent(req.body.patientId, result.structured);
+      const structuredWithMeta = {
+        ...(result.structured || {}),
+        _upload: {
+          original_filename: uploaded.originalname,
+          mimetype: uploaded.mimetype,
+          size: uploaded.size,
+        },
+      };
+      const ingestion = await runIngestionAgent(req.body.patientId, structuredWithMeta);
       result.ingestion = ingestion;
       blockchain.addBlock('INGESTION_PROCESSING', 'SYSTEM', req.body.patientId, `Ingestion complete - ${ingestion.success ? 'success' : 'failed'}`);
     }

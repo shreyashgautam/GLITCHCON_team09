@@ -44,6 +44,8 @@ function normalizeBundle(patient, visits, medications, labs, alerts) {
         (visits || []).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]?.date || null,
     },
     visits: (visits || []).map((v) => ({
+      encounter_id: v.encounter_id || null,
+      source_document_id: v.source_document_id || null,
       visit_id: v.visit_id || null,
       date: v.date || null,
       doctor: v.doctor || null,
@@ -63,6 +65,8 @@ function normalizeBundle(patient, visits, medications, labs, alerts) {
       weight_kg: v.weight_kg ?? v.weight ?? null,
     })),
     medications: (medications || []).map((m) => ({
+      encounter_id: m.encounter_id || null,
+      source_document_id: m.source_document_id || null,
       med_id: m.med_id || null,
       drug: m.drug || m.name,
       dose: m.dose || '',
@@ -74,6 +78,7 @@ function normalizeBundle(patient, visits, medications, labs, alerts) {
       active: m.active ?? true,
     })),
     labs: labs || [],
+    documents: [],
     alerts: alerts && alerts.length ? alerts : deriveAlertsFromLabs(labs || []),
   };
 }
@@ -87,16 +92,35 @@ async function getFromMongo(patientId) {
     const db = client.db(dbName);
     const normalizedId = String(patientId || '').trim().toUpperCase();
     const idRegex = new RegExp(`^${normalizedId}$`, 'i');
-    const [patient, visits, medications, labs] = await Promise.all([
+    const [patient, visits, medications, labs, documents] = await Promise.all([
       db.collection('patients').findOne({
         $or: [{ patient_id: normalizedId }, { patient_id: idRegex }, { id: normalizedId }, { id: idRegex }],
       }),
       db.collection('visits').find({ patient_id: { $regex: idRegex } }).toArray(),
       db.collection('medications').find({ patient_id: { $regex: idRegex } }).toArray(),
       db.collection('labs').find({ patient_id: { $regex: idRegex } }).toArray(),
+      db
+        .collection('documents')
+        .find(
+          { patient_id: { $regex: idRegex } },
+          { projection: { patient_id: 1, uploaded_at: 1, type: 1, source: 1, extractor: 1, raw_text: 1, file: 1 } }
+        )
+        .sort({ uploaded_at: -1 })
+        .limit(6)
+        .toArray(),
     ]);
     if (!patient) return null;
-    return normalizeBundle(patient, visits, medications, labs, []);
+    const bundle = normalizeBundle(patient, visits, medications, labs, []);
+    bundle.documents = (documents || []).map((d) => ({
+      document_id: d._id || null,
+      uploaded_at: d.uploaded_at || null,
+      type: d.type || 'unknown',
+      source: d.source || null,
+      extractor: d.extractor || null,
+      file: d.file || null,
+      raw_text: d.raw_text || '',
+    }));
+    return bundle;
   } finally {
     await client.close();
   }
