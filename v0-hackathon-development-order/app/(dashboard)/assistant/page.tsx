@@ -13,8 +13,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { patients } from "@/lib/mock-data";
+import { patients, type Patient } from "@/lib/mock-data";
 import { agentQuery } from "@/lib/patient-portal";
+import { fetchApi } from "@/lib/backend-api";
 import {
   Send,
   Bot,
@@ -30,6 +31,7 @@ import {
   Plus,
   MessageSquare,
   Trash2,
+  Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -103,6 +105,51 @@ function FormattedMessage({ content }: { content: string }) {
       continue;
     }
 
+    // Markdown Table Parser
+    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
+      const tableLines: string[] = [];
+      while (index < lines.length && lines[index].trim().startsWith("|") && lines[index].trim().endsWith("|")) {
+        tableLines.push(lines[index].trim());
+        index += 1;
+      }
+      if (tableLines.length >= 2) {
+        const headerCells = tableLines[0].split("|").slice(1, -1).map((c) => c.trim());
+        const isSeparator = /^\|[-:\s|]+\|$/.test(tableLines[1]);
+        const startDataIdx = isSeparator ? 2 : 1;
+        const dataRows = tableLines.slice(startDataIdx).map((row) =>
+          row.split("|").slice(1, -1).map((c) => c.trim())
+        );
+
+        blocks.push(
+          <div key={`table-${index}`} className="my-3 overflow-x-auto rounded-xl border border-border/70 bg-card/60 shadow-sm">
+            <table className="w-full border-collapse text-xs">
+              <thead className="bg-muted/80 text-foreground font-semibold">
+                <tr>
+                  {headerCells.map((h, hi) => (
+                    <th key={`th-${hi}`} className="border-b border-border/70 px-3 py-2 text-left">
+                      {renderInlineText(h)}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/40">
+                {dataRows.map((row, ri) => (
+                  <tr key={`tr-${ri}`} className="hover:bg-muted/30 transition-colors">
+                    {row.map((cell, ci) => (
+                      <td key={`td-${ci}`} className="px-3 py-2 text-foreground/90 align-top">
+                        {renderInlineText(cell)}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        );
+        continue;
+      }
+    }
+
     if (/^\d+\.\s+/.test(trimmed)) {
       const items: string[] = [];
       while (index < lines.length && /^\d+\.\s+/.test(lines[index].trim())) {
@@ -151,8 +198,38 @@ export default function AssistantPage() {
   const [activeChatId, setActiveChatId] = useState<string>("");
   const [input, setInput] = useState("");
   const [isTyping, setIsTyping] = useState(false);
+  const [patientsList, setPatientsList] = useState<Array<{
+    patient_id: string;
+    name: string;
+    diagnosis?: string[];
+    status?: string;
+  }>>(patients);
+  const [patientSearch, setPatientSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadPatients() {
+      try {
+        const data = await fetchApi<Array<{
+          patient_id: string;
+          name: string;
+          diagnosis?: string[];
+          status?: string;
+        }>>("/api/patients");
+        if (isMounted && Array.isArray(data) && data.length > 0) {
+          setPatientsList(data);
+        }
+      } catch {
+        // Fallback to local mock data
+      }
+    }
+    loadPatients();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     const raw = localStorage.getItem(CHAT_STORAGE_KEY);
@@ -304,7 +381,7 @@ export default function AssistantPage() {
     }));
 
     if (patientId) {
-      const patient = patients.find((p) => p.patient_id === patientId);
+      const patient = patientsList.find((p) => p.patient_id === patientId);
       if (patient) {
         setInput(`Generate a detailed consultation brief for ${patient.name}`);
       }
@@ -395,39 +472,98 @@ export default function AssistantPage() {
           </Card>
 
           <Card className="rounded-2xl border-0 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Select Patient</CardTitle>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-semibold">Select Patient</CardTitle>
+                <span className="text-xs text-muted-foreground">{patientsList.length} total</span>
+              </div>
+              <div className="relative mt-2">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search patient..."
+                  value={patientSearch}
+                  onChange={(e) => setPatientSearch(e.target.value)}
+                  className="h-8 rounded-lg pl-8 text-xs bg-muted/40 border-border/50"
+                />
+              </div>
             </CardHeader>
-            <CardContent className="space-y-2">
-              {patients.slice(0, 5).map((patient) => (
-                <button
-                  key={patient.patient_id}
-                  onClick={() => handlePatientSelect(patient.patient_id)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-xl p-3 text-left transition-all",
-                    selectedPatient === patient.patient_id
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "bg-muted/50 hover:bg-muted"
-                  )}
-                >
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={`https://i.pravatar.cc/100?u=${patient.patient_id}`} />
-                    <AvatarFallback className={cn(
-                      "text-xs font-semibold",
-                      selectedPatient === patient.patient_id ? "bg-white/20" : "bg-primary/10 text-primary"
-                    )}>
-                      {patient.name.split(" ").map((n) => n[0]).join("")}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 overflow-hidden">
-                    <p className="truncate text-sm font-medium">{patient.name}</p>
-                    <p className={cn("text-xs", selectedPatient === patient.patient_id ? "opacity-80" : "text-muted-foreground")}>
-                      {patient.diagnosis[0]}
-                    </p>
-                  </div>
-                  {patient.status === "critical" && <div className="h-2 w-2 rounded-full bg-foreground" />}
-                </button>
-              ))}
+            <CardContent className="p-2">
+              <ScrollArea className="max-h-60 pr-2">
+                <div className="space-y-1">
+                  <button
+                    onClick={() => handlePatientSelect("")}
+                    className={cn(
+                      "flex w-full items-center gap-2 rounded-xl p-2.5 text-left text-xs transition-all",
+                      selectedPatient === ""
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "bg-muted/40 hover:bg-muted"
+                    )}
+                  >
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-background/20 font-semibold">
+                      ALL
+                    </div>
+                    <div className="flex-1 overflow-hidden">
+                      <p className="font-semibold">All Patients (Clinic Mode)</p>
+                      <p className={cn("text-[11px]", selectedPatient === "" ? "opacity-80" : "text-muted-foreground")}>
+                        Clinic-wide screening & stats
+                      </p>
+                    </div>
+                  </button>
+
+                  {patientsList
+                    .filter((p) => {
+                      if (!patientSearch.trim()) return true;
+                      const q = patientSearch.toLowerCase();
+                      return (
+                        p.name.toLowerCase().includes(q) ||
+                        p.patient_id.toLowerCase().includes(q) ||
+                        (p.diagnosis || []).some((d) => d.toLowerCase().includes(q))
+                      );
+                    })
+                    .slice(0, 20)
+                    .map((patient) => (
+                      <button
+                        key={patient.patient_id}
+                        onClick={() => handlePatientSelect(patient.patient_id)}
+                        className={cn(
+                          "flex w-full items-center gap-2 rounded-xl p-2.5 text-left transition-all",
+                          selectedPatient === patient.patient_id
+                            ? "bg-primary text-primary-foreground shadow-sm"
+                            : "bg-muted/30 hover:bg-muted"
+                        )}
+                      >
+                        <Avatar className="h-7 w-7 shrink-0">
+                          <AvatarImage src={`https://i.pravatar.cc/100?u=${patient.patient_id}`} />
+                          <AvatarFallback
+                            className={cn(
+                              "text-[10px] font-semibold",
+                              selectedPatient === patient.patient_id ? "bg-white/20" : "bg-primary/10 text-primary"
+                            )}
+                          >
+                            {patient.name.split(" ").map((n) => n[0]).join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 overflow-hidden">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-mono opacity-70">{patient.patient_id}</span>
+                            <p className="truncate text-xs font-medium">{patient.name}</p>
+                          </div>
+                          <p
+                            className={cn(
+                              "truncate text-[11px]",
+                              selectedPatient === patient.patient_id ? "opacity-80" : "text-muted-foreground"
+                            )}
+                          >
+                            {patient.diagnosis?.[0] || "General consultation"}
+                          </p>
+                        </div>
+                        {patient.status === "critical" && (
+                          <div className="h-2 w-2 shrink-0 rounded-full bg-destructive" title="Critical Status" />
+                        )}
+                      </button>
+                    ))}
+                </div>
+              </ScrollArea>
             </CardContent>
           </Card>
 
@@ -469,13 +605,16 @@ export default function AssistantPage() {
                 New Chat
               </Button>
               <Select value={selectValue} onValueChange={handleSelectChange}>
-                <SelectTrigger className="w-44 rounded-xl border-border bg-background sm:w-48">
-                  <SelectValue placeholder="Context: All patients" />
+                <SelectTrigger className="w-52 rounded-xl border-border bg-background sm:w-56">
+                  <SelectValue placeholder="Context: All Patients" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_PATIENTS_VALUE}>All Patients</SelectItem>
-                  {patients.map((p) => (
+                <SelectContent className="max-h-72">
+                  <SelectItem value={ALL_PATIENTS_VALUE}>
+                    <span className="font-semibold">All Patients (Clinic Overview)</span>
+                  </SelectItem>
+                  {patientsList.map((p) => (
                     <SelectItem key={p.patient_id} value={p.patient_id}>
+                      <span className="font-mono text-xs text-muted-foreground mr-1.5">{p.patient_id}</span>
                       {p.name}
                     </SelectItem>
                   ))}

@@ -227,6 +227,9 @@ async function getAllPatientsLite() {
 
 function extractLikelyPatientName(query) {
   const text = String(query || '').trim();
+  const idMatch = text.match(/\b([pP]\d{3,4})\b/);
+  if (idMatch) return idMatch[1].toUpperCase();
+
   const patterns = [
     /(?:of|for|about)\s+([a-zA-Z][a-zA-Z\s]{2,50})/i,
     /(?:does|is|was)\s+([a-zA-Z][a-zA-Z\s]{1,50})/i,
@@ -256,6 +259,16 @@ function extractLikelyPatientName(query) {
 }
 
 async function resolvePatientIdByName(name) {
+  const all = await getAllPatientsLite();
+  if (!all.length) return null;
+
+  const raw = String(name || '').trim();
+  const idMatch = raw.match(/\b([pP]\d{3,4})\b/i);
+  if (idMatch) {
+    const foundById = all.find((p) => String(p.patient_id || p.id).toUpperCase() === idMatch[1].toUpperCase());
+    if (foundById) return foundById;
+  }
+
   const target = normalizeName(name)
     .replace(
       /\b(patient|details|detail|history|medications|medicine|disease|diagnosis|summary|consultation|brief|for|about|of|give|me|the|recent|what|is|and|tell|please)\b/g,
@@ -264,10 +277,8 @@ async function resolvePatientIdByName(name) {
     .replace(/\s+/g, ' ')
     .trim();
   if (!target) return null;
-  const all = await getAllPatientsLite();
-  if (!all.length) return null;
 
-  const exact = all.find((p) => normalizeName(p.name) === target);
+  const exact = all.find((p) => normalizeName(p.name) === target || String(p.patient_id || p.id).toUpperCase() === target.toUpperCase());
   if (exact) return exact;
 
   const contains = all.find((p) => normalizeName(p.name).includes(target) || target.includes(normalizeName(p.name)));

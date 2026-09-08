@@ -44,7 +44,7 @@ async function runReceptionist(userMessage, conversationHistory, apiKey) {
   ];
 
   const response = await client.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
+    model: process.env.GROQ_MODEL || 'groq/compound-mini',
     messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
     max_tokens: 256,
     temperature: 0.7

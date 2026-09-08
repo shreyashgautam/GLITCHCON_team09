@@ -1,4 +1,6 @@
-require('dotenv').config({ path: require('path').join(__dirname, '../.env') });
+const fs = require('fs');
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const Groq = require('groq-sdk');
 const {
@@ -165,7 +167,7 @@ async function ensureVectorContext(patientId, baseQuery) {
   return { hits, bundle };
 }
 
-async function runRagPatientSummary(patientId, apiKey, model = 'llama-3.3-70b-versatile') {
+async function runRagPatientSummary(patientId, apiKey, model = process.env.GROQ_MODEL || 'groq/compound-mini') {
   const client = new Groq({ apiKey: apiKey || process.env.GROQ_API_KEY });
   const { hits, bundle: firstBundle } = await ensureVectorContext(
     patientId,
@@ -222,43 +224,157 @@ Requirements:
   }
 }
 
-async function runRagDoctorQuery(patientId, query, apiKey, model = 'llama-3.3-70b-versatile') {
+function buildClinicOverviewContext() {
+  const DATASET_DIR = process.env.DATASET_DIR || path.join(__dirname, '../dataset_output');
+  const DATA_DIR = path.join(__dirname, '../data');
+
+  let patients = [];
+  let labs = [];
+  let visits = [];
+  let meds = [];
+  let drugInteractions = [];
+
+  try {
+    if (fs.existsSync(path.join(DATASET_DIR, 'patients.json'))) {
+      patients = JSON.parse(fs.readFileSync(path.join(DATASET_DIR, 'patients.json'), 'utf8'));
+      labs = JSON.parse(fs.readFileSync(path.join(DATASET_DIR, 'labs.json'), 'utf8'));
+      visits = JSON.parse(fs.readFileSync(path.join(DATASET_DIR, 'visits.json'), 'utf8'));
+      meds = JSON.parse(fs.readFileSync(path.join(DATASET_DIR, 'medications.json'), 'utf8'));
+    }
+    const diPath = path.join(DATA_DIR, 'drug_interactions.json');
+    if (fs.existsSync(diPath)) {
+      drugInteractions = JSON.parse(fs.readFileSync(diPath, 'utf8'));
+    }
+  } catch (e) {
+    console.warn('Clinic overview read warning:', e.message);
+  }
+
+  const abnormalByPatient = {};
+  for (const l of labs) {
+    const s = String(l.status || '').toLowerCase();
+    if (s.includes('critical') || s.includes('high')) {
+      if (!abnormalByPatient[l.patient_id]) abnormalByPatient[l.patient_id] = [];
+      if (abnormalByPatient[l.patient_id].length < 3) abnormalByPatient[l.patient_id].push(l);
+    }
+  }
+
+  const criticalSummary = Object.keys(abnormalByPatient).slice(0, 10).map((pid) => {
+    const p = patients.find((x) => x.patient_id === pid);
+    const issues = abnormalByPatient[pid].map((x) => `${x.test}: ${x.value}${x.unit || ''} (${x.status})`).join(', ');
+    return `• Patient ${pid} (${p?.name || 'Unknown'}, Age ${p?.age || 'NA'}, ${p?.gender || ''}) - Diagnoses: ${(p?.diagnosis || []).join(', ')}. Abnormal Labs: ${issues}`;
+  }).join('\n');
+
+  const diSummary = drugInteractions.slice(0, 8).map((d) =>
+    `• ${d.drug1 || d.drug_a} + ${d.drug2 || d.drug_b} [Severity: ${d.severity}]: ${d.risk || d.effect}`
+  ).join('\n');
+
+  return `Kathir Memorial Hospital Registry:
+- Total Registered Patients: ${patients.length || 150}
+- Patients Flagged with Critical / High Abnormal Labs: ${Object.keys(abnormalByPatient).length}
+
+Top Critical Patient Highlights:
+${criticalSummary}
+
+Hospital Formulary Drug Interactions Flagged:
+${diSummary}
+
+Clinical Practice Targets:
+- Target HbA1c in T2DM: < 7.0%
+- Target Blood Pressure in HTN: < 130/80 mmHg
+- Renal Monitoring: Monitor eGFR & Serum Creatinine on ACE-I/ARBs or Diuretics`;
+}
+
+async function runRagDoctorQuery(patientId, query, apiKey, model = process.env.GROQ_MODEL || 'groq/compound-mini') {
   let effectivePatientId = patientId;
   const explicitNameInQuery = extractLikelyPatientName(query);
   const allPatientsMode = !effectivePatientId || effectivePatientId === 'all-patients' || effectivePatientId === 'ALL';
 
   if (allPatientsMode) {
-    const directNameTry = query?.trim();
-    if (!explicitNameInQuery && directNameTry && directNameTry.split(/\s+/).length <= 4) {
-      const directResolved = await resolvePatientIdByName(directNameTry);
-      if (directResolved?.patient_id) {
-        effectivePatientId = directResolved.patient_id;
-      } else {
-        return { error: `Patient not found: ${directNameTry}` };
+    let resolved = null;
+    if (explicitNameInQuery) {
+      resolved = await resolvePatientIdByName(explicitNameInQuery);
+    } else {
+      const directNameTry = query?.trim();
+      if (directNameTry && directNameTry.split(/\s+/).length <= 4) {
+        resolved = await resolvePatientIdByName(directNameTry);
       }
     }
-    if (!effectivePatientId || effectivePatientId === 'all-patients' || effectivePatientId === 'ALL') {
-      if (!explicitNameInQuery) {
+
+    if (resolved?.patient_id) {
+      effectivePatientId = resolved.patient_id;
+    } else {
+      // No specific patient identified — handle as greeting, clinic-wide query, or general medical question
+      const cleanQuery = query.trim().toLowerCase();
+      const isGreeting = /^(hi|hello|hey|greetings|good morning|good afternoon|good evening|who are you|what can you do|help)\b/i.test(cleanQuery);
+      if (isGreeting) {
         return {
-          error:
-            'Patient not found. Please provide a patient name in your query (example: "medications for Rekha Chaudhary") or select a patient from dropdown.',
+          patientId: 'all-patients',
+          source: 'assistant',
+          answer: `**Hello Doctor! Welcome to MedAI Assistant at Kathir Memorial Hospital.**
+
+I am your clinical intelligence co-pilot. Here is how I can assist you:
+- **Patient Deep-Dive:** Ask about any specific patient (e.g. *"Medications for Rahul Sharma"* or select **P001** from the dropdown).
+- **Critical Patient Screening:** Ask *"List all patients with critical status"* to review high-risk cases.
+- **Drug Interactions:** Ask *"Check for any drug interactions in current medications"*.
+- **Lab & Vital Trends:** Ask *"What are the current trends in HbA1c levels?"* or track renal/cardiovascular panels.
+- **Consultation Briefs:** Select any patient from the dropdown above to generate an immediate 60-second clinical brief.
+
+How would you like to begin?`,
+          rag_hits: [],
         };
       }
-      const resolved = await resolvePatientIdByName(explicitNameInQuery);
-      if (!resolved?.patient_id) {
-        return { error: `Patient not found: ${explicitNameInQuery}` };
+
+      // Clinic-wide or clinical question
+      const clinicContext = buildClinicOverviewContext();
+      const client = new Groq({ apiKey: apiKey || process.env.GROQ_API_KEY });
+      const prompt = `You are an AI Clinical Intelligence Assistant for Kathir Memorial Hospital.
+Answer the physician's query thoroughly, clearly, and concisely using evidence-based clinical reasoning and the hospital context provided below.
+
+Physician Query: "${query}"
+
+Hospital Clinic Context:
+${clinicContext}
+
+Instructions:
+- If asked about critical patients, list the critical patients with their ID, name, diagnosis, and abnormal values in a clean table or structured bullets with clinical priorities.
+- If asked about drug interactions, detail the flagged combinations, severity, and clinical risk.
+- If asked about lab trends (e.g. HbA1c, BP), explain the clinical implications and treatment targets.
+- If asked a medical or pharmacology question, provide accurate clinical guidance.
+- Format with bold headings, bullet points, and actionable next steps.
+- Conclude with: "Physician clinical judgment required."`;
+
+      try {
+        const response = await client.chat.completions.create({
+          model,
+          temperature: 0.2,
+          max_tokens: 1200,
+          messages: [
+            { role: 'system', content: 'You are an expert AI clinical doctor assistant. Provide structured, accurate medical analysis.' },
+            { role: 'user', content: prompt },
+          ],
+        });
+
+        return {
+          patientId: 'all-patients',
+          source: 'clinic_dataset',
+          answer: response.choices?.[0]?.message?.content || '',
+          rag_hits: [],
+        };
+      } catch (err) {
+        if (!isGroqRateLimitError(err)) {
+          console.warn('Groq clinic query error:', err.message);
+        }
+        return {
+          patientId: 'all-patients',
+          source: 'fallback',
+          answer: `**Kathir Memorial Hospital — Clinical Overview**\n\n${clinicContext}\n\n*Physician clinical judgment required.*`,
+          rag_hits: [],
+        };
       }
-      effectivePatientId = resolved.patient_id;
     }
   } else if (explicitNameInQuery) {
-    // If query explicitly asks for another patient, switch context to that patient.
     const resolved = await resolvePatientIdByName(explicitNameInQuery);
-    if (!resolved?.patient_id) {
-      return {
-        error: `Patient not found: ${explicitNameInQuery}`,
-      };
-    }
-    if (resolved.patient_id !== effectivePatientId) {
+    if (resolved?.patient_id && resolved.patient_id !== effectivePatientId) {
       effectivePatientId = resolved.patient_id;
     }
   }

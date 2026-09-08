@@ -17,7 +17,7 @@ const tools = require('../tools/patientTools');
 // Constants
 // ---------------------------------------------------------------------------
 
-const MODEL = 'llama-3.3-70b-versatile';
+const MODEL = process.env.GROQ_MODEL || 'groq/compound-mini';
 const MAX_TOKENS = 1024;
 
 /** All valid departments at Kathir Memorial Hospital */

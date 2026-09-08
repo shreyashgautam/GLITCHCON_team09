@@ -3,23 +3,29 @@ const crypto = require('crypto');
 let chain = [];
 let io = null;
 
+function ensureGenesis() {
+  if (chain.length === 0) {
+    chain.push({
+      index: 0,
+      timestamp: new Date().toISOString(),
+      action: 'CHAIN_INITIALIZED',
+      actorId: 'SYSTEM',
+      patientId: null,
+      details: 'Kathir Memorial Hospital — Patient Intelligence Blockchain Audit Ledger initialized',
+      previousHash: '0000000000000000',
+      hash: crypto.createHash('sha256').update('genesis').digest('hex')
+    });
+  }
+}
+
 function init(socketIo) {
   io = socketIo;
-  // Genesis block
-  chain.push({
-    index: 0,
-    timestamp: new Date().toISOString(),
-    action: 'CHAIN_INITIALIZED',
-    actorId: 'SYSTEM',
-    patientId: null,
-    details: 'Kathir Memorial Hospital — Patient Intelligence Blockchain Audit Ledger initialized',
-    previousHash: '0000000000000000',
-    hash: crypto.createHash('sha256').update('genesis').digest('hex')
-  });
+  ensureGenesis();
 }
 
 function addBlock(action, actorId, patientId, details) {
-  const prevHash = chain[chain.length - 1].hash;
+  ensureGenesis();
+  const prevHash = chain[chain.length - 1]?.hash || '0000000000000000';
   const blockData = {
     index: chain.length,
     timestamp: new Date().toISOString(),

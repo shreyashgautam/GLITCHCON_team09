@@ -33,7 +33,7 @@ Patient Conditions: ${patientConditions?.join(', ') || 'Not specified'}
 Analyse the nutritional content and provide personalised advice for this patient's conditions.`;
 
   const response = await client.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
+    model: process.env.GROQ_MODEL || 'groq/compound-mini',
     messages: [
       { role: 'system', content: SYSTEM_PROMPT },
       { role: 'user', content: prompt }

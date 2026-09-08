@@ -689,30 +689,35 @@ router.post('/auth/register', (req, res) => {
 
 router.get('/patients', async (req, res) => {
   try {
-    if (!process.env.MONGO_URI) {
-      return res.status(500).json({ error: 'MONGO_URI is not configured' });
+    if (process.env.MONGO_URI) {
+      try {
+        const mongoPatients = await getAllPatientsLiteFromMongo();
+        if (mongoPatients && mongoPatients.length > 0) {
+          const normalized = (Array.isArray(mongoPatients) ? mongoPatients : []).map((p) => ({
+            _id: p._id || null,
+            patient_id: p.patient_id,
+            name: p.name,
+            age: p.age ?? null,
+            gender: p.gender ?? 'Unknown',
+            email: p.email || `${String(p.name || 'patient').toLowerCase().replace(/\s+/g, '.')}@patient.local`,
+            phone: p.phone || null,
+            blood_group: p.blood_group || null,
+            bmi: p.bmi ?? null,
+            city: p.city || null,
+            smoking: p.smoking || null,
+            alcohol: p.alcohol || null,
+            diagnosis: p.diagnosis || [],
+            allergies: p.allergies || [],
+            status: p.status || 'stable',
+            lastVisit: p.lastVisit || null,
+          }));
+          return res.json(normalized);
+        }
+      } catch (mongoErr) {
+        console.warn('Mongo load patients failed, falling back to local files:', mongoErr.message);
+      }
     }
-
-    const mongoPatients = await getAllPatientsLiteFromMongo();
-    const normalized = (Array.isArray(mongoPatients) ? mongoPatients : []).map((p) => ({
-      _id: p._id || null,
-      patient_id: p.patient_id,
-      name: p.name,
-      age: p.age ?? null,
-      gender: p.gender ?? 'Unknown',
-      email: p.email || `${String(p.name || 'patient').toLowerCase().replace(/\s+/g, '.')}@patient.local`,
-      phone: p.phone || null,
-      blood_group: p.blood_group || null,
-      bmi: p.bmi ?? null,
-      city: p.city || null,
-      smoking: p.smoking || null,
-      alcohol: p.alcohol || null,
-      diagnosis: p.diagnosis || [],
-      allergies: p.allergies || [],
-      status: p.status || 'stable',
-      lastVisit: p.lastVisit || null,
-    }));
-    return res.json(normalized);
+    return res.json(listPatientsFromData());
   } catch (e) {
     return res.status(500).json({ error: `Failed to load patients: ${e.message}` });
   }
@@ -720,10 +725,17 @@ router.get('/patients', async (req, res) => {
 
 router.get('/dashboard/data', async (req, res) => {
   try {
-    if (!process.env.MONGO_URI) {
-      return res.status(500).json({ error: 'MONGO_URI is not configured' });
+    if (process.env.MONGO_URI) {
+      try {
+        const data = await dashboardDataFromMongo();
+        if (data && data.patients && data.patients.length > 0) {
+          return res.json(data);
+        }
+      } catch (mongoErr) {
+        console.warn('Mongo dashboard data failed, falling back to local files:', mongoErr.message);
+      }
     }
-    const data = await dashboardDataFromMongo();
+    const data = dashboardDataFromFiles();
     return res.json(data);
   } catch (e) {
     return res.status(500).json({ error: `Failed to build dashboard data: ${e.message}` });
