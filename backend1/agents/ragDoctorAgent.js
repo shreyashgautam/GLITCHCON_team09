@@ -156,15 +156,21 @@ function buildFallbackAnswerFromBundle(bundle, query = '', reason = '') {
 }
 
 async function ensureVectorContext(patientId, baseQuery) {
-  await initIndex();
-  let hits = await semanticSearch(baseQuery, patientId, 8);
-  if (hits.length > 0) return { hits, bundle: null };
+  try {
+    await initIndex();
+    let hits = await semanticSearch(baseQuery, patientId, 8);
+    if (hits.length > 0) return { hits, bundle: null };
 
-  const bundle = await getPatientContext(patientId);
-  if (!bundle) return { hits: [], bundle: null };
-  await indexPatientBundle(bundle);
-  hits = await semanticSearch(baseQuery, patientId, 8);
-  return { hits, bundle };
+    const bundle = await getPatientContext(patientId);
+    if (!bundle) return { hits: [], bundle: null };
+    await indexPatientBundle(bundle);
+    hits = await semanticSearch(baseQuery, patientId, 8);
+    return { hits, bundle };
+  } catch (err) {
+    console.warn('ensureVectorContext fallback:', err.message);
+    const bundle = await getPatientContext(patientId);
+    return { hits: [], bundle };
+  }
 }
 
 async function runRagPatientSummary(patientId, apiKey, model = process.env.GROQ_MODEL || 'groq/compound-mini') {

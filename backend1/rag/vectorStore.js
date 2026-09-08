@@ -1,8 +1,13 @@
 const { LocalIndex } = require('vectra');
 const path = require('path');
+const os = require('os');
+const fs = require('fs');
 const Anthropic = require('@anthropic-ai/sdk');
 
-const INDEX_PATH = path.join(__dirname, '../data/vectra_index');
+const isServerless = Boolean(process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME);
+const INDEX_PATH = isServerless
+  ? path.join(os.tmpdir(), 'vectra_index')
+  : path.join(__dirname, '../data/vectra_index');
 let index = null;
 const indexedPatientIds = new Set();
 
@@ -21,10 +26,20 @@ async function getEmbedding(text) {
 }
 
 async function initIndex() {
-  index = new LocalIndex(INDEX_PATH);
-  if (!await index.isIndexCreated()) {
-    await index.createIndex();
+  if (index) return index;
+  try {
+    if (!fs.existsSync(INDEX_PATH)) {
+      fs.mkdirSync(INDEX_PATH, { recursive: true });
+    }
+    index = new LocalIndex(INDEX_PATH);
+    if (!await index.isIndexCreated()) {
+      await index.createIndex();
+    }
+  } catch (e) {
+    console.warn('Vector index init warning:', e.message);
+    index = null;
   }
+  return index;
 }
 
 async function indexPatient(patient) {
@@ -105,38 +120,50 @@ function buildDocsFromBundle(bundle) {
 }
 
 async function indexPatientBundle(bundle) {
-  if (!bundle?.patient?.patient_id) return { indexed: 0 };
-  if (!index) await initIndex();
+  try {
+    if (!bundle?.patient?.patient_id) return { indexed: 0 };
+    await initIndex();
+    if (!index) return { indexed: 0 };
 
-  const patientId = bundle.patient.patient_id;
-  if (indexedPatientIds.has(patientId)) return { indexed: 0 };
+    const patientId = bundle.patient.patient_id;
+    if (indexedPatientIds.has(patientId)) return { indexed: 0 };
 
-  const docs = buildDocsFromBundle(bundle);
-  for (const doc of docs) {
-    const vector = await getEmbedding(doc.text);
-    await index.insertItem({
-      vector,
-      metadata: {
-        patientId,
-        date: doc.date,
-        section: doc.section,
-        text: doc.text,
-      },
-    });
+    const docs = buildDocsFromBundle(bundle);
+    for (const doc of docs) {
+      const vector = await getEmbedding(doc.text);
+      await index.insertItem({
+        vector,
+        metadata: {
+          patientId,
+          date: doc.date,
+          section: doc.section,
+          text: doc.text,
+        },
+      });
+    }
+    indexedPatientIds.add(patientId);
+    return { indexed: docs.length };
+  } catch (e) {
+    console.warn('Index patient bundle warning:', e.message);
+    return { indexed: 0 };
   }
-  indexedPatientIds.add(patientId);
-  return { indexed: docs.length };
 }
 
 async function semanticSearch(query, patientId, topK = 3) {
-  if (!index) await initIndex();
-  const queryVector = await getEmbedding(query);
-  const results = await index.queryItems(queryVector, topK * 3);
-  // Filter by patient and return top results
-  return results
-    .filter(r => r.item.metadata.patientId === patientId)
-    .slice(0, topK)
-    .map(r => ({ score: r.score, ...r.item.metadata }));
+  try {
+    await initIndex();
+    if (!index) return [];
+    const queryVector = await getEmbedding(query);
+    const results = await index.queryItems(queryVector, topK * 3);
+    // Filter by patient and return top results
+    return results
+      .filter(r => r.item.metadata.patientId === patientId)
+      .slice(0, topK)
+      .map(r => ({ score: r.score, ...r.item.metadata }));
+  } catch (e) {
+    console.warn('Semantic search warning:', e.message);
+    return [];
+  }
 }
 
 module.exports = { initIndex, indexPatient, indexPatientBundle, semanticSearch };
