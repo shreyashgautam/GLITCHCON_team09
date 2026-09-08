@@ -9,7 +9,10 @@ try {
   MongoClient = null;
 }
 
-const DATASET_DIR = process.env.DATASET_DIR ? path.resolve(process.env.DATASET_DIR) : null;
+const defaultDatasetDir = path.join(__dirname, '../dataset_output');
+const DATASET_DIR = (process.env.DATASET_DIR && fs.existsSync(path.resolve(process.env.DATASET_DIR)))
+  ? path.resolve(process.env.DATASET_DIR)
+  : (fs.existsSync(defaultDatasetDir) ? defaultDatasetDir : null);
 
 function readJson(filePath) {
   if (!fs.existsSync(filePath)) return [];

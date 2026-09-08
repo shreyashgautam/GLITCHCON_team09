@@ -33,7 +33,10 @@ const upload = multer({ dest: UPLOAD_DIR });
 const uploadAny = multer({ dest: UPLOAD_DIR });
 const DATA_DIR = path.join(__dirname, '../data');
 const DRUG_INTERACTIONS_FILE = path.join(DATA_DIR, 'drug_interactions.json');
-const DATASET_DIR = process.env.DATASET_DIR ? path.resolve(process.env.DATASET_DIR) : null;
+const defaultDatasetDir = path.join(__dirname, '../dataset_output');
+const DATASET_DIR = (process.env.DATASET_DIR && fs.existsSync(path.resolve(process.env.DATASET_DIR)))
+  ? path.resolve(process.env.DATASET_DIR)
+  : (fs.existsSync(defaultDatasetDir) ? defaultDatasetDir : null);
 
 function readJsonIfExists(baseDir, fileName) {
   const fullPath = path.join(baseDir, fileName);

@@ -2,7 +2,10 @@ const fs = require('fs');
 const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '../data');
-const DATASET_DIR = process.env.DATASET_DIR ? path.resolve(process.env.DATASET_DIR) : null;
+const defaultDatasetDir = path.join(__dirname, '../dataset_output');
+const DATASET_DIR = (process.env.DATASET_DIR && fs.existsSync(path.resolve(process.env.DATASET_DIR)))
+  ? path.resolve(process.env.DATASET_DIR)
+  : (fs.existsSync(defaultDatasetDir) ? defaultDatasetDir : null);
 
 let datasetCache = null;
 
